@@ -1,0 +1,1 @@
+// UserStateStore.swift has been removed from the project as requested.
