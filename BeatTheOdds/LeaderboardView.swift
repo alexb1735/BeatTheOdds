@@ -1,3 +1,11 @@
+//
+//  LeaderboardView.swift
+//  BeatTheOdds
+//
+//  Created by Alex Bradshaw on 02.03.26.
+//
+
+
 import SwiftUI
 
 struct LeaderboardView: View {
@@ -20,10 +28,18 @@ struct LeaderboardView: View {
                 }
 
                 ForEach(Array(entries.enumerated()), id: \.element.id) { idx, p in
-                    HStack {
+                    HStack(spacing: 8) {
+                        // Rank number
                         Text("#\(idx + 1)")
                             .font(.headline)
                             .frame(width: 44, alignment: .leading)
+
+                        // Medal for top 3
+                        Group {
+                            if idx == 0 { Image(systemName: "medal.fill").foregroundColor(.yellow) }
+                            else if idx == 1 { Image(systemName: "medal.fill").foregroundColor(.gray) }
+                            else if idx == 2 { Image(systemName: "medal.fill").foregroundColor(.orange) }
+                        }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(p.displayName).font(.headline)
@@ -34,15 +50,16 @@ struct LeaderboardView: View {
 
                         Spacer()
 
-                        Text("$\(p.netWorth)")
+                        Text("$\(String(format: "%.2f", p.netWorth))")
                             .font(.headline)
+                            .monospacedDigit()
                     }
                 }
             }
-            .navigationTitle("Leaderboard")
+            
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                    
                 }
             }
             .task { await load() }
@@ -57,9 +74,12 @@ struct LeaderboardView: View {
         defer { isLoading = false }
 
         do {
-            entries = try await friends.fetchFriendsLeaderboard()
+            var fetched = try await friends.fetchFriendsLeaderboard()
+            fetched.sort { $0.netWorth > $1.netWorth }
+            entries = fetched
         } catch {
             errorText = error.localizedDescription
         }
     }
 }
+

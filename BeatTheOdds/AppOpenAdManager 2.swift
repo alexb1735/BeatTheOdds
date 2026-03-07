@@ -7,47 +7,77 @@ final class AppOpenAdManager: NSObject {
   
   static let shared = AppOpenAdManager()
   
-  private let adUnitID = "ca-app-pub-9041707305654469/1313227723"
+  private let adUnitID = "ca-app-pub-3940256099942544/5575463023"
   
-  private var appOpenAd: GADAppOpenAd?
+  private var appOpenAd: AppOpenAd?
   private var isLoading: Bool = false
   private var isShowingAd: Bool = false
   private var loadDate: Date?
+  private var hasShownAdThisForeground = false
+    
+  private var lastPresentAttempt: Date?
   
   private override init() {
     super.init()
+    NotificationCenter.default.addObserver(self, selector: #selector(appWillEnterForeground), name: UIApplication.willEnterForegroundNotification, object: nil)
+    NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
   }
+  
+  /// Call this at app launch (e.g., in App/Scene initialization) to preload and try to present as early as possible.
+  public func start() {
+    loadIfNeeded()
+  }
+  
+  @objc private func appWillEnterForeground() {
+    // Reset state on new foreground session and try once
+    hasShownAdThisForeground = false
+    // Only try to present once per foreground session
+    tryToPresentAd()
+  }
+
+  @objc private func appDidEnterBackground() {
+    // Reset the flag to allow showing on next foreground
+    hasShownAdThisForeground = false
+  }
+  
+  /// Attempts to present shortly after app launch, retrying for a short window without blocking UI.
+ 
   
   /// Loads an App Open Ad if one isn't already loaded or loading.
   public func loadIfNeeded() {
+      
+      guard ConsentInformation.shared.canRequestAds else {
+          print("AppOpen: cannot request ads yet (consent not ready)")
+          return
+      }
+      
     if isAdAvailable || isLoading {
       return
     }
     
     isLoading = true
-    let request = GADRequest()
+    let request = Request()
     
     if AppOpenAdManager.shouldRequestNonPersonalizedAds() {
-      let extras = GADExtras()
+      let extras = Extras()
       extras.additionalParameters = ["npa": "1"]
       request.register(extras)
     }
     
-    GADAppOpenAd.load(
-      withAdUnitID: adUnitID,
-      request: request,
-      orientation: UIInterfaceOrientation.portrait
-    ) { [weak self] (ad, error) in
+    AppOpenAd.load(with: adUnitID, request: request) { [weak self] (ad: AppOpenAd?, error: Error?) in
       guard let self = self else { return }
       self.isLoading = false
-      if let error = error {
-        self.appOpenAd = nil
-        self.loadDate = nil
-        // Could log error here if needed
-        return
-      }
+        if let error = error {
+          print("AppOpen load error: \(error.localizedDescription)")
+          self.appOpenAd = nil
+          self.loadDate = nil
+          return
+        }
+        print("AppOpen loaded")
       self.appOpenAd = ad
       self.loadDate = Date()
+        
+        
     }
   }
   
@@ -61,19 +91,57 @@ final class AppOpenAdManager: NSObject {
   /// Attempts to present the ad if available and not currently showing.
   /// If not available, triggers a load.
   public func tryToPresentAd() {
-    guard !isShowingAd, isAdAvailable, let ad = appOpenAd else {
-      loadIfNeeded()
-      return
-    }
-    
-    guard let topVC = topViewController() else {
-      // Cannot present without a valid top view controller
-      return
-    }
-    
-    ad.fullScreenContentDelegate = self
-    ad.present(fromRootViewController: topVC)
-    isShowingAd = true
+      
+      guard ConsentInformation.shared.canRequestAds else {
+          print("AppOpen: cannot present yet (consent not ready)")
+          return
+      }
+      print("AppOpen: tryToPresentAd (canRequestAds=\(ConsentInformation.shared.canRequestAds))")
+      
+      // Only present once per foreground session
+      if hasShownAdThisForeground {
+          return
+      }
+      
+      // Don’t stack fullscreen UIs (very important if consent form is up)
+      
+      if let last = lastPresentAttempt, Date().timeIntervalSince(last) < 2.0 {
+          return
+      }
+      lastPresentAttempt = Date()
+      
+      if ConsentManager.shared.isPresentingConsentUI {
+          print("AppOpen: skipping (consent UI presenting)")
+          return
+      }
+      
+      guard !isShowingAd else { return }
+
+      // If no ad, load and exit
+      guard let ad = appOpenAd else {
+          print("AppOpen: no cached ad yet → loading")
+          loadIfNeeded()
+          return
+      }
+
+      guard let topVC = topViewController() else {
+          print("AppOpen: no top VC")
+          return
+      }
+
+      do {
+          try ad.canPresent(from: topVC)
+      } catch {
+          print("AppOpen: cannot present -> \(error.localizedDescription)")
+          appOpenAd = nil
+          loadIfNeeded()
+          return
+      }
+
+      ad.fullScreenContentDelegate = self
+      print("AppOpen: presenting")
+      ad.present(from: topVC)
+      hasShownAdThisForeground = true
   }
   
   /// Returns the currently visible top view controller from the key window.
@@ -99,26 +167,28 @@ final class AppOpenAdManager: NSObject {
   }
 }
 
-// MARK: - GADFullScreenContentDelegate
+// MARK: - FullScreenContentDelegate
 
-extension AppOpenAdManager: GADFullScreenContentDelegate {
-  
-  func adDidDismissFullScreenContent(_ ad: GADFullScreenPresentingAd) {
-    appOpenAd = nil
-    isShowingAd = false
-    loadIfNeeded()
-  }
-  
-  func ad(_ ad: GADFullScreenPresentingAd,
-          didFailToPresentFullScreenContentWithError error: Error) {
-    appOpenAd = nil
-    isShowingAd = false
-    loadIfNeeded()
-  }
-  
-  func adDidPresentFullScreenContent(_ ad: GADFullScreenPresentingAd) {
-    // No action needed on present
-  }
+extension AppOpenAdManager: FullScreenContentDelegate {
+    
+    internal func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
+        appOpenAd = nil
+        isShowingAd = false
+        loadIfNeeded()
+    }
+    
+    internal func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        appOpenAd = nil
+        isShowingAd = false
+        loadIfNeeded()
+    }
+    
+    func adWillPresentFullScreenContent(_ ad: FullScreenPresentingAd) {
+        print("AppOpen: will present")
+        isShowingAd = true
+    }
+    
+ 
 }
 
 // MARK: - Non-Personalized Ads Helper
@@ -133,19 +203,21 @@ extension AppOpenAdManager {
   /// Integrators should refine this logic according to their UMP version and app logic.
   static func shouldRequestNonPersonalizedAds() -> Bool {
     let consentInfo = ConsentInformation.shared
-    
     switch consentInfo.consentStatus {
-    case .personalized:
-      // Personalized ads consent granted
+    case .obtained:
+      // User provided consent; allow personalized ads
       return false
-    case .nonPersonalized:
-      // User has given non-personalized consent explicitly
+    case .required:
+      // Consent required but not obtained; request non-personalized ads
       return true
+    case .notRequired:
+      // Consent not required in this region; allow personalized ads
+      return false
     case .unknown:
-      // Consent unknown, prefer non-personalized ads by default for safety
+      // Consent unknown, request non-personalized ads to be safe
       return true
     @unknown default:
-      // Future cases, default to non-personalized ads
+      // Be conservative by default
       return true
     }
   }

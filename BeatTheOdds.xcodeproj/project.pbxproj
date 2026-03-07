@@ -8,6 +8,10 @@
 
 /* Begin PBXBuildFile section */
 		2900581B2F0068DD00FBA5EF /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 2900581A2F0068DD00FBA5EF /* GoogleMobileAds */; };
+		29164F4A2F4F307100D57A44 /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 29164F492F4F307100D57A44 /* GoogleUserMessagingPlatform */; };
+		293905862F549029003F92BA /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905852F549029003F92BA /* FirebaseCore */; };
+		293905882F54902F003F92BA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 293905872F54902F003F92BA /* FirebaseAuth */; };
+		2939058A2F549037003F92BA /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905892F549037003F92BA /* FirebaseFirestore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -40,7 +44,11 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				29164F4A2F4F307100D57A44 /* GoogleUserMessagingPlatform in Frameworks */,
+				293905862F549029003F92BA /* FirebaseCore in Frameworks */,
 				2900581B2F0068DD00FBA5EF /* GoogleMobileAds in Frameworks */,
+				2939058A2F549037003F92BA /* FirebaseFirestore in Frameworks */,
+				293905882F54902F003F92BA /* FirebaseAuth in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -51,6 +59,7 @@
 			isa = PBXGroup;
 			children = (
 				2900580D2F00685400FBA5EF /* BeatTheOdds */,
+				29164F472F4F2DD800D57A44 /* Frameworks */,
 				2900580C2F00685400FBA5EF /* Products */,
 			);
 			sourceTree = "<group>";
@@ -61,6 +70,13 @@
 				2900580B2F00685400FBA5EF /* BeatTheOdds.app */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		29164F472F4F2DD800D57A44 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -84,6 +100,10 @@
 			name = BeatTheOdds;
 			packageProductDependencies = (
 				2900581A2F0068DD00FBA5EF /* GoogleMobileAds */,
+				29164F492F4F307100D57A44 /* GoogleUserMessagingPlatform */,
+				293905852F549029003F92BA /* FirebaseCore */,
+				293905872F54902F003F92BA /* FirebaseAuth */,
+				293905892F549037003F92BA /* FirebaseFirestore */,
 			);
 			productName = BeatTheOdds;
 			productReference = 2900580B2F00685400FBA5EF /* BeatTheOdds.app */;
@@ -115,6 +135,8 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				290058192F0068DD00FBA5EF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */,
+				29164F482F4F307100D57A44 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */,
+				293905822F548EE1003F92BA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 2900580C2F00685400FBA5EF /* Products */;
@@ -271,6 +293,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BeatTheOdds/BeatTheOdds.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = J9ZQL7929D;
@@ -304,6 +327,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = BeatTheOdds/BeatTheOdds.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = J9ZQL7929D;
@@ -364,6 +388,22 @@
 				minimumVersion = 12.14.0;
 			};
 		};
+		29164F482F4F307100D57A44 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/googleads/swift-package-manager-google-user-messaging-platform.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.1.0;
+			};
+		};
+		293905822F548EE1003F92BA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/firebase/firebase-ios-sdk";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 12.10.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -371,6 +411,26 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 290058192F0068DD00FBA5EF /* XCRemoteSwiftPackageReference "swift-package-manager-google-mobile-ads" */;
 			productName = GoogleMobileAds;
+		};
+		29164F492F4F307100D57A44 /* GoogleUserMessagingPlatform */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 29164F482F4F307100D57A44 /* XCRemoteSwiftPackageReference "swift-package-manager-google-user-messaging-platform" */;
+			productName = GoogleUserMessagingPlatform;
+		};
+		293905852F549029003F92BA /* FirebaseCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 293905822F548EE1003F92BA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseCore;
+		};
+		293905872F54902F003F92BA /* FirebaseAuth */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 293905822F548EE1003F92BA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseAuth;
+		};
+		293905892F549037003F92BA /* FirebaseFirestore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 293905822F548EE1003F92BA /* XCRemoteSwiftPackageReference "firebase-ios-sdk" */;
+			productName = FirebaseFirestore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -1,3 +1,11 @@
+//
+//  FriendRequestsView.swift
+//  BeatTheOdds
+//
+//  Created by Alex Bradshaw on 02.03.26.
+//
+
+
 import SwiftUI
 
 struct FriendRequestsView: View {
@@ -10,53 +18,73 @@ struct FriendRequestsView: View {
     @State private var isLoading = false
 
     var body: some View {
-        NavigationStack {
-            List {
-                if isLoading {
-                    HStack { ProgressView(); Text("Loading…") }
-                }
+        ZStack {
+            LinearGradient(
+                colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .blur(radius: 6)
 
-                if let errorText {
-                    Text(errorText).foregroundStyle(.red)
-                }
+            NavigationStack {
+                List {
+                    if isLoading {
+                        HStack { ProgressView(); Text("Loading…") }
+                    }
 
-                if requests.isEmpty && !isLoading {
-                    Text("No friend requests yet.")
-                        .foregroundStyle(.secondary)
-                }
+                    if let errorText {
+                        Text(errorText).foregroundStyle(.red)
+                    }
 
-                ForEach(requests) { req in
-                    let profile = profilesByUid[req.fromUid]
+                    if requests.isEmpty && !isLoading {
+                        Text("No friend requests yet.")
+                            .foregroundStyle(.secondary)
+                    }
 
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(profile?.displayName ?? "Unknown")
-                                .font(.headline)
-                            Text("@\(profile?.username ?? req.fromUid)")
-                                .font(.footnote)
-                                .foregroundStyle(.secondary)
+                    ForEach(requests) { req in
+                        let profile = profilesByUid[req.fromUid]
+
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(profile?.displayName ?? "Unknown")
+                                    .font(.headline)
+                                Text("@\(profile?.username ?? req.fromUid)")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button("Accept") {
+                                Task { await accept(fromUid: req.fromUid) }
+                            }
+                            .buttonStyle(.borderedProminent)
                         }
-
-                        Spacer()
-
-                        Button("Accept") {
-                            Task { await accept(fromUid: req.fromUid) }
-                        }
-                        .buttonStyle(.borderedProminent)
                     }
                 }
-            }
-            .navigationTitle("Friend Requests")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") { dismiss() }
+                .navigationTitle("Friend Requests")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Close") { dismiss() }
+                    }
                 }
-            }
-            .task {
-                await load()
-            }
-            .refreshable {
-                await load()
+                .task {
+                    await load()
+                }
+                .refreshable {
+                    await load()
+                }
+                .scrollContentBackground(.hidden)
+                .background(
+                    LinearGradient(
+                        colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                    .ignoresSafeArea()
+                    .blur(radius: 6)
+                )
             }
         }
     }

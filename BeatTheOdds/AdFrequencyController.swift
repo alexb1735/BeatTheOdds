@@ -1,4 +1,5 @@
 import Foundation
+import UserMessagingPlatform
 
 /// Central gate for controlling how often interstitials are shown.
 /// Call `registerActionAndMaybeShowAd()` from action button handlers.
@@ -7,7 +8,7 @@ final class AdFrequencyController {
     static let shared = AdFrequencyController()
 
     /// Show an interstitial every `threshold` actions.
-    private let threshold: Int = 6
+    private let threshold: Int = 12
 
     /// Counts user actions since the last interstitial.
     private var actionCount: Int = 0

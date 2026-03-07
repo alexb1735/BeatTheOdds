@@ -1,31 +1,61 @@
-//
-//  BeatTheOddsApp.swift
-//  BeatTheOdds
-//
-//  Created by Alex Bradshaw on 27.12.25.
-//
-
 import SwiftUI
 import GoogleMobileAds
+import FirebaseAuth
+import Combine
 
 @main
 struct BeatTheOddsApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+
+    @StateObject private var auth = AuthManager()
+    @StateObject private var economy = EconomyStore()
+    @StateObject private var upgrades = UpgradesStore()
+
+    @Environment(\.scenePhase) private var scenePhase
+
     init() {
-        // Configure Google Mobile Ads SDK
         let mobileAds = MobileAds.shared
-        // Register this device for test ads (development only)
         mobileAds.requestConfiguration.testDeviceIdentifiers = [
             "ced985bc4d7c830e9b85b62e51dbed02"
         ]
-        // Start the Google Mobile Ads SDK
         mobileAds.start(completionHandler: nil)
-        // Optionally, register test device IDs during development to ensure test ads
-        // mobileAds.requestConfiguration.testDeviceIdentifiers = ["YOUR-TEST-DEVICE-ID"]
     }
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
+                .environmentObject(auth)
+                .environmentObject(economy)
+                .environmentObject(upgrades)
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            if newPhase == .active {
+                AppOpenAdManager.shared.loadIfNeeded()
+                InterstitialAdManager.shared.loadIfNeeded()
+                // Presentation of App Open Ad is handled by AppOpenAdManager's foreground observer.
+            }
+        }
+    }
+}
+
+private struct RootView: View {
+    @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var economy: EconomyStore
+    @EnvironmentObject var upgrades: UpgradesStore
+
+    var body: some View {
+        Group {
+            if auth.user != nil {
+                ContentView()
+                    .onAppear { economy.start() }
+                    .onAppear { upgrades.start() }
+                    .onDisappear { economy.stop() }
+                    .onDisappear { upgrades.stop() }
+            } else {
+                AuthView()
+                    .onAppear { economy.stop() }
+                    .onAppear { upgrades.stop() }
+            }
         }
     }
 }

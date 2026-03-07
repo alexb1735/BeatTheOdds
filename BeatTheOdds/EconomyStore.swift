@@ -1,33 +1,37 @@
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import Combine
 
 @MainActor
 final class EconomyStore: ObservableObject {
-    @Published private(set) var money: Double = 0
-    @Published private(set) var coins: Double = 0
+    @Published var money: Double = 0
+    @Published var coins: Double = 0
 
     var netWorth: Double { money + coins }
 
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
 
+    private var pendingSaveWorkItem: DispatchWorkItem?
+    private let saveDebounceInterval: TimeInterval = 0.5
+
     func start() {
         stop()
+
         guard let uid = Auth.auth().currentUser?.uid else { return }
 
-        listener = db.collection("users").document(uid).addSnapshotListener { [weak self] snap, err in
-            guard let self else { return }
-            if let err { print("Economy listener error:", err); return }
-            let data = snap?.data() ?? [:]
+        listener = db.collection("users").document(uid)
+            .addSnapshotListener { [weak self] snap, err in
+                guard let self else { return }
+                if let data = snap?.data() {
+                    let m = (data["money"] as? Double) ?? Double(data["money"] as? Int ?? 0)
+                    let c = (data["coins"] as? Double) ?? Double(data["coins"] as? Int ?? 0)
 
-            let m = (data["money"] as? Double) ?? Double((data["money"] as? Int) ?? 0)
-            let c = (data["coins"] as? Double) ?? Double((data["coins"] as? Int) ?? 0)
-
-            // Only update if changed to avoid UI loops
-            if self.money != m { self.money = m }
-            if self.coins != c { self.coins = c }
-        }
+                    self.money = m
+                    self.coins = c
+                }
+            }
     }
 
     func stop() {
@@ -35,27 +39,39 @@ final class EconomyStore: ObservableObject {
         listener = nil
     }
 
-    /// Call whenever the game updates money/coins
-    func set(money newMoney: Double, coins newCoins: Double) async {
+    private func scheduleSave() {
+        pendingSaveWorkItem?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            Task { await self.save() }
+        }
+        pendingSaveWorkItem = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + saveDebounceInterval, execute: work)
+    }
+
+    func save() async {
         guard let uid = Auth.auth().currentUser?.uid else { return }
 
-        // Update locally immediately
-        money = newMoney
-        coins = newCoins
-
         do {
-            try await db.collection("users").document(uid).updateData([
-                "money": newMoney,
-                "coins": newCoins,
-                "netWorth": newMoney + newCoins, // keep leaderboard fast
+            try await db.collection("users").document(uid).setData([
+                "money": money,
+                "coins": coins,
+                "netWorth": money + coins,
                 "updatedAt": FieldValue.serverTimestamp()
-            ])
+            ], merge: true)
         } catch {
-            print("Economy update error:", error)
+            print("Economy save error:", error)
         }
     }
 
-    // Convenience helpers
-    func addMoney(_ delta: Double) async { await set(money: money + delta, coins: coins) }
-    func addCoins(_ delta: Double) async { await set(money: money, coins: coins + delta) }
+    // helpers
+    func addMoney(_ amount: Double) {
+        money += amount
+        scheduleSave()
+    }
+
+    func addCoins(_ amount: Double) {
+        coins += amount
+        scheduleSave()
+    }
 }

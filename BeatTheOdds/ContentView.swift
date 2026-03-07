@@ -40,6 +40,7 @@ private extension UIApplication {
 
 private struct ActiveSheetsModifier: ViewModifier {
     @Binding var activeSheet: ContentView.ActiveSheet?
+    @Binding var sheetSection: ContentView.SettingsSection
     var money: Binding<Double>
     var coins: Binding<Double>
     @Binding var isStreakProtected: Bool
@@ -55,6 +56,7 @@ private struct ActiveSheetsModifier: ViewModifier {
     var applyLoss: (Binding<Double>, Double, Bool) -> Void
     var animateValue: (Binding<Double>, Double, Bool) -> Void
     var recomputeStats: () -> Void
+    let settingsContentBuilder: () -> AnyView
 
     func body(content: Content) -> some View {
         content
@@ -65,14 +67,33 @@ private struct ActiveSheetsModifier: ViewModifier {
                 case .roulette2:
                     ContentView.RouletteNumberWheelView(isPresented: Binding(get: { activeSheet == .roulette2 }, set: { newValue in if !newValue { activeSheet = nil } })) { _,_,_ in } onCommitPick: { _ in }
                 case .settings:
-                    EmptyView()
+                    NavigationStack {
+                        SettingsSheetHost(section: $sheetSection, contentBuilder: settingsContentBuilder)
+                            
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Close") { activeSheet = nil }
+                                }
+                            }
+                    }
                 case .addFriend:
-                    EmptyView()
+                    AddFriendsView()
                 }
             }
     }
 }
 
+// Host to present settings content with the parent's binding
+private struct SettingsSheetHost: View {
+    @Binding var section: ContentView.SettingsSection
+    @EnvironmentObject var auth: AuthManager
+    @EnvironmentObject var economy: EconomyStore
+    // The parent passes a closure that renders settings content using the parent's state.
+    let contentBuilder: () -> AnyView
+    var body: some View {
+        contentBuilder()
+    }
+}
 
 
 struct BannerAdView: UIViewRepresentable {
@@ -192,7 +213,7 @@ struct SectionRow: View {
 struct TimerBadge: View {
     @Binding var timeRemaining: Int
     @EnvironmentObject var economy: EconomyStore
-    var reward: Double = 1000.0
+    var reward: Double = 100.0
     @State private var flash = false
     
     var body: some View {
@@ -251,14 +272,41 @@ struct ContentView: View {
     
     @State private var activeSheet: ActiveSheet? = nil
     
+    @State private var uiCoins: Double = 0
+    @State private var uiMoney: Double = 0
+    
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var auth: AuthManager
     
     @EnvironmentObject var economy: EconomyStore
     
+    // Added environment object for upgrades store
+    @EnvironmentObject var upgrades: UpgradesStore
+
     // Inserted bindings for economy values
-    private var coinsBinding: Binding<Double> { Binding(get: { economy.coins }, set: { newValue in economy.coins = newValue }) }
-    private var moneyBinding: Binding<Double> { Binding(get: { economy.money }, set: { newValue in economy.money = newValue }) }
+    private var coinsBinding: Binding<Double> {
+        Binding(
+            get: { economy.coins },
+            set: { newValue in
+                economy.coins = newValue
+            }
+        )
+    }
+
+    private var moneyBinding: Binding<Double> {
+        Binding(
+            get: { economy.money },
+            set: { newValue in
+                economy.money = newValue
+            }
+        )
+    }
+
+    private var netWorth: Double {
+        economy.coins + economy.money
+    }
+    
+    
     
     @State private var bet: Double = 10.0
     @State private var showAlert = false
@@ -392,7 +440,7 @@ struct ContentView: View {
         static let hasIncomePer15s = "cv.hasIncomePer15s"
         static let hasIncomePer1s = "cv.hasIncomePer1s"
         static let isStreakProtected = "cv.isStreakProtected"
-        static let hasUsedProtectionForCurrentStreak = "cv.hasUsedProtection"
+        static let hasUsedProtectionForCurrentStreak = "cv.hasUsedProtectionForCurrentStreak"
         static let musicVolume = "cv.musicVolume"
         static let sfxVolume = "cv.sfxVolume"
         static let coins = "cv.coins"
@@ -868,7 +916,7 @@ struct ContentView: View {
                     .cornerRadius(12)
                     .shadow(radius: 6)
                 }
-                .disabled(adCooldownRemaining > 0 || !isRewardAdReady)
+                .disabled(adCooldownRemaining > 0) // removed dependency on isRewardAdReady
                 .buttonStyle(PressScaleButtonStyle())
                 .padding(.horizontal, 12)
             }
@@ -1120,7 +1168,7 @@ struct ContentView: View {
     var rightStatusPanel: some View {
         VStack(alignment: .trailing, spacing: 8) {
             VStack(alignment: .trailing, spacing: 4) {
-                Text("$1000 will be added in:")
+                Text("$100 will be added in:")
                     .font(.caption2)
                     .foregroundColor(.blue)
                 Text(formatTime(timeRemaining))
@@ -1156,7 +1204,7 @@ struct ContentView: View {
                 .buttonStyle(PressScaleButtonStyle())
             }
             HStack(spacing: 6) {
-                Button(action: { showingUserInfo = true }) {
+                Button(action: { if auth.user == nil { activeSheet = nil } else { showingUserInfo = true } }) {
                     Image(systemName: "person.circle.fill")
                         .foregroundColor(.blue)
                 }
@@ -1234,6 +1282,7 @@ struct ContentView: View {
                     sheetSection = .friends; selectedSettingsTabID = SettingsSection.friends.id; activeSheet = .settings
                 }
                 Button("Log out") {
+                    activeSheet = nil
                     do { try auth.signOut() }
                     catch { print("Sign out error:", error) }
                 }
@@ -1374,12 +1423,22 @@ struct ContentView: View {
                         .cornerRadius(10)
                         Divider().padding(.vertical, 4)
 
-                        Group {
-                            upgradeRow(icon: "clock.arrow.circlepath", title: "$1 every minute", purchased: hasIncomePerMinute) { showingIncomeMinuteConfirm = true }
-                            upgradeRow(icon: "clock.arrow.circlepath", title: "$1 every 30 seconds", purchased: hasIncomePer30s) { showingIncome30sConfirm = true }
-                            upgradeRow(icon: "clock.arrow.circlepath", title: "$1 every 15 seconds", purchased: hasIncomePer15s) { showingIncome15sConfirm = true }
-                            upgradeRow(icon: "clock.arrow.circlepath", title: "$1 every second", purchased: hasIncomePer1s) { showingIncome1sConfirm = true }
+                        // Restored explicit upgrade purchase buttons (UI identical), wired to UpgradesStore
+                        VStack(spacing: 10) {
+                            upgradeRow(icon: "clock", title: "Pay $20,000 to earn $1 every minute while the app is open", purchased: hasIncomePerMinute) {
+                                showingIncomeMinuteConfirm = true
+                            }
+                            upgradeRow(icon: "clock.fill", title: "Pay $35,000 to earn $1 every 30 seconds while the app is open", purchased: hasIncomePer30s) {
+                                showingIncome30sConfirm = true
+                            }
+                            upgradeRow(icon: "clock.badge.checkmark", title: "Pay $60,000 to earn $1 every 15 seconds while the app is open", purchased: hasIncomePer15s) {
+                                showingIncome15sConfirm = true
+                            }
+                            upgradeRow(icon: "timer", title: "Pay $500,000 to earn $1 every second while the app is open", purchased: hasIncomePer1s) {
+                                showingIncome1sConfirm = true
+                            }
                         }
+
                     }
                     .padding()
                 }
@@ -1398,13 +1457,13 @@ struct ContentView: View {
                         Image(systemName: "crown.fill").foregroundColor(.yellow)
                         Text("Premium Pass").font(.title3).bold()
                     }
-                    Text("Unlock exclusive tools and remove ads for a smoother experience.")
+                    Text("Unlock exclusive tools and remove ads for a smoother experience!")
                         .font(.footnote)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
 
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack { Image(systemName: "nosign.app.fill").foregroundColor(.green); Text("Remove ads") }
+                        HStack { Image(systemName: "nosign.app.fill").foregroundColor(.green); Text("Remove popup ads") }
                         HStack { Image(systemName: "clock.arrow.circlepath").foregroundColor(.green); Text("Fixed income of $1 every 15 seconds") }
                         HStack { Image(systemName: "multiply.circle.fill").foregroundColor(.green); Text("Permanent base multiplier of 1.2x") }
                         HStack { Image(systemName: "chart.bar.xaxis.ascending").foregroundColor(.green); Text("Add friends and view leaderboard") }
@@ -1746,6 +1805,7 @@ struct ContentView: View {
                             if economy.coins >= 20000.0 {
                                 Task { await economy.addCoins(-20000.0) }
                                 hasIncomePerMinute = true
+                                Task { await upgrades.incrementLevel(for: "u_minute") }
                             } else { showAlert = true }
                         }
                         showingIncomeMinuteConfirm = false
@@ -1776,6 +1836,7 @@ struct ContentView: View {
                             if economy.coins >= 35000.0 {
                                 Task { await economy.addCoins(-35000.0) }
                                 hasIncomePer30s = true
+                                Task { await upgrades.incrementLevel(for: "u_30s") }
                             } else { showAlert = true }
                         }
                         showingIncome30sConfirm = false
@@ -1806,6 +1867,7 @@ struct ContentView: View {
                             if economy.coins >= 60000.0 {
                                 Task { await economy.addCoins(-60000.0) }
                                 hasIncomePer15s = true
+                                Task { await upgrades.incrementLevel(for: "u_15s") }
                             } else { showAlert = true }
                         }
                         showingIncome15sConfirm = false
@@ -1836,6 +1898,7 @@ struct ContentView: View {
                             if economy.coins >= 500000.0 {
                                 Task { await economy.addCoins(-500000.0) }
                                 hasIncomePer1s = true
+                                Task { await upgrades.incrementLevel(for: "u_1s") }
                             } else { showAlert = true }
                         }
                         showingIncome1sConfirm = false
@@ -1943,7 +2006,11 @@ struct ContentView: View {
     private func watchAdForCoins() {
         guard adCooldownRemaining == 0 else { return }
         guard isRewardAdReady else {
+            // trigger a load and inform user
             NotificationCenter.default.post(name: NSNotification.Name("RewardedAd_Load"), object: nil)
+            #if DEBUG
+            print("[Ads] Rewarded ad not ready yet; loading...")
+            #endif
             return
         }
         pauseBackgroundMusic()
@@ -2625,6 +2692,7 @@ struct ContentView: View {
         
         var body: some View {
             VStack(spacing: 16) {
+                Spacer().frame(height: 8)
                 Text("Number Spin")
                     .font(.title2).bold().foregroundColor(.green)
                 
@@ -2930,26 +2998,33 @@ struct ContentView: View {
             .opacity(currentOpacity)
         let step2 = step1.animation(.easeInOut(duration: 0.2), value: isAnimatingValue)
 
+        // Removed usage of ActiveSheetsModifier
+        // Instead, add overlays and .sheet(item:) for activeSheet below
+        
         let step3 = step2
-            .modifier(ActiveSheetsModifier(activeSheet: $activeSheet,
-                                           money: Binding.constant(economy.money),
-                                           coins: Binding.constant(economy.coins),
-                                           isStreakProtected: $isStreakProtected,
-                                           currentStreak: $currentStreak,
-                                           streakMultiplier: $streakMultiplier,
-                                           hasUsedProtectionForCurrentStreak: $hasUsedProtectionForCurrentStreak,
-                                           glowMultiplierRoulette: $glowMultiplierRoulette,
-                                           glowNumbersRoulette: $glowNumbersRoulette,
-                                           roulette2OriginalMoney: $roulette2OriginalMoney,
-                                           playRewardSound: playRewardSound,
-                                           playLossSound: playLossSound,
-                                           applyWin: applyWin,
-                                           applyLoss: applyLoss,
-                                           animateValue: animateValue,
-                                           recomputeStats: recomputeStats))
             .overlay(alignment: .topLeading) { topLeftAccountPanel }
             .overlay(alignment: .leading) { settingsSlideOutPanel }
             .overlay(alignment: .leading) { settingsChevronHandle }
+            .sheet(item: $activeSheet) { sheet in
+                switch sheet {
+                case .roulette:
+                    rouletteSheet
+                case .roulette2:
+                    roulette2Sheet
+                case .settings:
+                    NavigationStack {
+                        SettingsSheetHost(section: $sheetSection, contentBuilder: { AnyView(self.settingsSheetContent) })
+                            
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    Button("Close") { activeSheet = nil }
+                                }
+                            }
+                    }
+                case .addFriend:
+                    AddFriendsView()
+                }
+            }
 
         // Replace multiple .overlay { ... } lines with a single overlay containing a ZStack with all conditional overlays
         let step4 = step3
@@ -2971,6 +3046,12 @@ struct ContentView: View {
 
         // ==== BEGIN REPLACED BLOCK ====
         let step5 = step4
+            .onAppear {
+                onAppearSetup()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    AppOpenAdManager.shared.tryToPresentAd()
+                }
+            }
             .onReceive(timer, perform: onTick)
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RewardedAd_Ready"))) { _ in isRewardAdReady = true }
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("RewardedAd_Impression"))) { _ in
@@ -2983,6 +3064,9 @@ struct ContentView: View {
                 #if DEBUG
                 print("app open ad: impression recorded")
                 #endif
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("InterstitialAd_ShowNow"))) { _ in
+                AdFrequencyController.shared.registerActionAndMaybeShowAd()
             }
             .onChange(of: economy.coins) { _, _ in
                 Task { await updateUserEconomyToFirestore() }
@@ -3031,7 +3115,15 @@ struct ContentView: View {
                 highestNetworth: highestNetworth
             ))
 
-        return AnyView(step6)
+        return AnyView(
+            Group {
+                if auth.user == nil {
+                    AuthView()
+                } else {
+                    step6
+                }
+            }
+        )
         // ==== END REPLACED BLOCK ====
     }
 
@@ -3158,5 +3250,12 @@ private struct OnChangeGroup: ViewModifier {
         return view
     }
 }
+
+
+
+
+
+// Insert the UserState struct here, as per instructions:
+
 
 

@@ -1,10 +1,23 @@
+//
+//  NetWorthStore.swift
+//  BeatTheOdds
+//
+//  Created by Alex Bradshaw on 02.03.26.
+//
+
+
 import Foundation
 import FirebaseAuth
 import FirebaseFirestore
+import Combine
 
 @MainActor
 final class NetWorthStore: ObservableObject {
+    var objectWillChange = ObservableObjectPublisher()
+    
     @Published private(set) var netWorth: Int = 0
+
+    init() {}
 
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
@@ -48,3 +61,4 @@ final class NetWorthStore: ObservableObject {
         }
     }
 }
+

@@ -8,11 +8,40 @@
 import SwiftUI
 
 struct FriendSearchResultView: View {
-    var body: some View {
-        Text(/*@START_MENU_TOKEN@*/"Hello, World!"/*@END_MENU_TOKEN@*/)
-    }
-}
+    let user: PublicUserProfile
+    @Binding var sentRequests: Set<String>
 
-#Preview {
-    FriendSearchResultView()
+    let sendRequest: (String) async -> Void
+
+    var alreadySent: Bool {
+        sentRequests.contains(user.id)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(user.displayName).font(.headline)
+                Text("@\(user.username)")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+                Text("Net worth: $\(String(format: "%.2f", user.netWorth))")
+                    .font(.footnote)
+                    .foregroundColor(.secondary)
+                    .monospacedDigit()
+            }
+
+            Button(alreadySent ? "Request Sent" : "Send Friend Request") {
+                Task { await sendRequest(user.id) }
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.blue)
+            .disabled(alreadySent)
+
+            if alreadySent {
+                Text("Friend request sent.")
+                    .foregroundStyle(.secondary)
+                    .font(.footnote)
+            }
+        }
+    }
 }
