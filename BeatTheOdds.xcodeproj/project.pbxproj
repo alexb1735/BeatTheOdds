@@ -22,7 +22,10 @@
 		290058242F015EEA00FBA5EF /* Exceptions for "BeatTheOdds" folder in "BeatTheOdds" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				"Info 2.plist",
+				"Info 3.plist",
 				Info.plist,
+				REMOVE_INSTRUCTIONS.txt,
 			);
 			target = 2900580A2F00685400FBA5EF /* BeatTheOdds */;
 		};
@@ -344,6 +347,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = "DWARF with dSYM File";
 				PRODUCT_BUNDLE_IDENTIFIER = com.AlexBradshaw.BeatTheOdds;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;

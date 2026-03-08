@@ -43,17 +43,23 @@ final class UpgradesStore: ObservableObject {
             if let error { print("Upgrades listener error:", error); return }
 
             var next: [IncomeUpgrade] = self.defaultUpgrades()
-            if let data = snapshot?.data(), let map = data["income"] as? [String: Any] {
-                // Merge saved levels into defaults
+
+            if let data = snapshot?.data(),
+               let map = data["income"] as? [String: Any] {
                 next = next.map { base in
-                    if let saved = map[base.id] as? [String: Any], let lvl = saved["level"] as? Int {
+                    if let saved = map[base.id] as? [String: Any],
+                       let lvl = saved["level"] as? Int {
                         var copy = base
                         copy.level = max(0, lvl)
                         return copy
                     }
                     return base
                 }
+            } else {
+                // No upgrades doc for this user yet → start from clean defaults
+                next = self.defaultUpgrades()
             }
+
             self.upgrades = next
             self.restartTimers()
         }
@@ -64,6 +70,11 @@ final class UpgradesStore: ObservableObject {
         listener?.remove()
         listener = nil
         stopTimers()
+    }
+    
+    func resetForAccountSwitch() {
+        stopTimers()
+        upgrades = []
     }
 
     /// Purchase/increase the level of an upgrade and persist.

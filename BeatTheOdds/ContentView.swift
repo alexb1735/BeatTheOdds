@@ -282,6 +282,10 @@ struct ContentView: View {
     
     // Added environment object for upgrades store
     @EnvironmentObject var upgrades: UpgradesStore
+    
+    private var uid: String {
+        Auth.auth().currentUser?.uid ?? "guest"
+    }
 
     // Inserted bindings for economy values
     private var coinsBinding: Binding<Double> {
@@ -431,93 +435,149 @@ struct ContentView: View {
 
     // MARK: - Persistence keys
     private enum PersistKey {
-        static let currentStreak = "cv.currentStreak"
-        static let streakMultiplier = "cv.streakMultiplier"
-        static let timeRemaining = "cv.timeRemaining"
-        static let adCooldownRemaining = "cv.adCooldownRemaining"
-        static let hasIncomePerMinute = "cv.hasIncomePerMinute"
-        static let hasIncomePer30s = "cv.hasIncomePer30s"
-        static let hasIncomePer15s = "cv.hasIncomePer15s"
-        static let hasIncomePer1s = "cv.hasIncomePer1s"
-        static let isStreakProtected = "cv.isStreakProtected"
-        static let hasUsedProtectionForCurrentStreak = "cv.hasUsedProtectionForCurrentStreak"
-        static let musicVolume = "cv.musicVolume"
-        static let sfxVolume = "cv.sfxVolume"
-        static let coins = "cv.coins"
-        static let money = "cv.money"
-        static let totalMoneyMade = "cv.totalMoneyMade"
-        static let longestWinStreak = "cv.longestWinStreak"
-        static let currentWinStreak = "cv.currentWinStreak"
-        static let longestLossStreak = "cv.longestLossStreak"
-        static let currentLossStreak = "cv.currentLossStreak"
-        static let largestSingleGain = "cv.largestSingleGain"
-        static let gamesPlayed = "cv.gamesPlayed"
-        static let gamesWon = "cv.gamesWon"
-        static let highestNetworth = "cv.highestNetworth"
-    }
+        static func currentStreak(_ uid: String) -> String { "cv.\(uid).currentStreak" }
+        static func streakMultiplier(_ uid: String) -> String { "cv.\(uid).streakMultiplier" }
+        static func timeRemaining(_ uid: String) -> String { "cv.\(uid).timeRemaining" }
+        static func adCooldownRemaining(_ uid: String) -> String { "cv.\(uid).adCooldownRemaining" }
 
+        static func hasIncomePerMinute(_ uid: String) -> String { "cv.\(uid).hasIncomePerMinute" }
+        static func hasIncomePer30s(_ uid: String) -> String { "cv.\(uid).hasIncomePer30s" }
+        static func hasIncomePer15s(_ uid: String) -> String { "cv.\(uid).hasIncomePer15s" }
+        static func hasIncomePer1s(_ uid: String) -> String { "cv.\(uid).hasIncomePer1s" }
+
+        static func isStreakProtected(_ uid: String) -> String { "cv.\(uid).isStreakProtected" }
+        static func hasUsedProtectionForCurrentStreak(_ uid: String) -> String { "cv.\(uid).hasUsedProtectionForCurrentStreak" }
+
+        static func musicVolume(_ uid: String) -> String { "cv.\(uid).musicVolume" }
+        static func sfxVolume(_ uid: String) -> String { "cv.\(uid).sfxVolume" }
+
+        static func coins(_ uid: String) -> String { "cv.\(uid).coins" }
+        static func money(_ uid: String) -> String { "cv.\(uid).money" }
+
+        static func totalMoneyMade(_ uid: String) -> String { "cv.\(uid).totalMoneyMade" }
+        static func longestWinStreak(_ uid: String) -> String { "cv.\(uid).longestWinStreak" }
+        static func currentWinStreak(_ uid: String) -> String { "cv.\(uid).currentWinStreak" }
+        static func longestLossStreak(_ uid: String) -> String { "cv.\(uid).longestLossStreak" }
+        static func currentLossStreak(_ uid: String) -> String { "cv.\(uid).currentLossStreak" }
+
+        static func largestSingleGain(_ uid: String) -> String { "cv.\(uid).largestSingleGain" }
+        static func gamesPlayed(_ uid: String) -> String { "cv.\(uid).gamesPlayed" }
+        static func gamesWon(_ uid: String) -> String { "cv.\(uid).gamesWon" }
+        static func highestNetworth(_ uid: String) -> String { "cv.\(uid).highestNetworth" }
+    }
     private func loadPersistedState() {
         let d = UserDefaults.standard
-        if d.object(forKey: PersistKey.currentStreak) != nil {
-            currentStreak = max(1.0, d.double(forKey: PersistKey.currentStreak))
+
+        if d.object(forKey: PersistKey.currentStreak(uid)) != nil {
+            currentStreak = max(1.0, d.double(forKey: PersistKey.currentStreak(uid)))
         }
-        if d.object(forKey: PersistKey.streakMultiplier) != nil {
-            streakMultiplier = max(1.0, d.double(forKey: PersistKey.streakMultiplier))
+
+        if d.object(forKey: PersistKey.streakMultiplier(uid)) != nil {
+            streakMultiplier = max(1.0, d.double(forKey: PersistKey.streakMultiplier(uid)))
         } else {
             streakMultiplier = max(1.0, currentStreak)
         }
-        if d.object(forKey: PersistKey.timeRemaining) != nil {
-            timeRemaining = max(0, d.integer(forKey: PersistKey.timeRemaining))
+
+        if d.object(forKey: PersistKey.timeRemaining(uid)) != nil {
+            timeRemaining = max(0, d.integer(forKey: PersistKey.timeRemaining(uid)))
         }
-        if d.object(forKey: PersistKey.adCooldownRemaining) != nil {
-            adCooldownRemaining = max(0, d.integer(forKey: PersistKey.adCooldownRemaining))
+
+        if d.object(forKey: PersistKey.adCooldownRemaining(uid)) != nil {
+            adCooldownRemaining = max(0, d.integer(forKey: PersistKey.adCooldownRemaining(uid)))
         }
-        hasIncomePerMinute = d.bool(forKey: PersistKey.hasIncomePerMinute)
-        hasIncomePer30s = d.bool(forKey: PersistKey.hasIncomePer30s)
-        hasIncomePer15s = d.bool(forKey: PersistKey.hasIncomePer15s)
-        hasIncomePer1s = d.bool(forKey: PersistKey.hasIncomePer1s)
-        isStreakProtected = d.bool(forKey: PersistKey.isStreakProtected)
-        hasUsedProtectionForCurrentStreak = d.bool(forKey: PersistKey.hasUsedProtectionForCurrentStreak)
-        if d.object(forKey: PersistKey.musicVolume) != nil { musicVolume = d.float(forKey: PersistKey.musicVolume) }
-        if d.object(forKey: PersistKey.sfxVolume) != nil { sfxVolume = d.float(forKey: PersistKey.sfxVolume) }
-        if d.object(forKey: PersistKey.coins) != nil { economy.coins = d.double(forKey: PersistKey.coins) }
-        if d.object(forKey: PersistKey.money) != nil { economy.money = d.double(forKey: PersistKey.money) }
-        if d.object(forKey: PersistKey.totalMoneyMade) != nil { totalMoneyMade = d.double(forKey: PersistKey.totalMoneyMade) }
-        if d.object(forKey: PersistKey.longestWinStreak) != nil { longestWinStreak = d.integer(forKey: PersistKey.longestWinStreak) }
-        if d.object(forKey: PersistKey.currentWinStreak) != nil { currentWinStreak = d.integer(forKey: PersistKey.currentWinStreak) }
-        if d.object(forKey: PersistKey.longestLossStreak) != nil { longestLossStreak = d.integer(forKey: PersistKey.longestLossStreak) }
-        if d.object(forKey: PersistKey.currentLossStreak) != nil { currentLossStreak = d.integer(forKey: PersistKey.currentLossStreak) }
-        if d.object(forKey: PersistKey.largestSingleGain) != nil { largestSingleGain = d.double(forKey: PersistKey.largestSingleGain) }
-        if d.object(forKey: PersistKey.gamesPlayed) != nil { gamesPlayed = d.integer(forKey: PersistKey.gamesPlayed) }
-        if d.object(forKey: PersistKey.gamesWon) != nil { gamesWon = d.integer(forKey: PersistKey.gamesWon) }
-        if d.object(forKey: PersistKey.highestNetworth) != nil { highestNetworth = d.double(forKey: PersistKey.highestNetworth) }
+
+        hasIncomePerMinute = d.bool(forKey: PersistKey.hasIncomePerMinute(uid))
+        hasIncomePer30s = d.bool(forKey: PersistKey.hasIncomePer30s(uid))
+        hasIncomePer15s = d.bool(forKey: PersistKey.hasIncomePer15s(uid))
+        hasIncomePer1s = d.bool(forKey: PersistKey.hasIncomePer1s(uid))
+
+        isStreakProtected = d.bool(forKey: PersistKey.isStreakProtected(uid))
+        hasUsedProtectionForCurrentStreak = d.bool(forKey: PersistKey.hasUsedProtectionForCurrentStreak(uid))
+
+        if d.object(forKey: PersistKey.musicVolume(uid)) != nil {
+            musicVolume = d.float(forKey: PersistKey.musicVolume(uid))
+        }
+
+        if d.object(forKey: PersistKey.sfxVolume(uid)) != nil {
+            sfxVolume = d.float(forKey: PersistKey.sfxVolume(uid))
+        }
+
+        if d.object(forKey: PersistKey.coins(uid)) != nil {
+            economy.coins = d.double(forKey: PersistKey.coins(uid))
+        }
+
+        if d.object(forKey: PersistKey.money(uid)) != nil {
+            economy.money = d.double(forKey: PersistKey.money(uid))
+        }
+
+        if d.object(forKey: PersistKey.totalMoneyMade(uid)) != nil {
+            totalMoneyMade = d.double(forKey: PersistKey.totalMoneyMade(uid))
+        }
+
+        if d.object(forKey: PersistKey.longestWinStreak(uid)) != nil {
+            longestWinStreak = d.integer(forKey: PersistKey.longestWinStreak(uid))
+        }
+
+        if d.object(forKey: PersistKey.currentWinStreak(uid)) != nil {
+            currentWinStreak = d.integer(forKey: PersistKey.currentWinStreak(uid))
+        }
+
+        if d.object(forKey: PersistKey.longestLossStreak(uid)) != nil {
+            longestLossStreak = d.integer(forKey: PersistKey.longestLossStreak(uid))
+        }
+
+        if d.object(forKey: PersistKey.currentLossStreak(uid)) != nil {
+            currentLossStreak = d.integer(forKey: PersistKey.currentLossStreak(uid))
+        }
+
+        if d.object(forKey: PersistKey.largestSingleGain(uid)) != nil {
+            largestSingleGain = d.double(forKey: PersistKey.largestSingleGain(uid))
+        }
+
+        if d.object(forKey: PersistKey.gamesPlayed(uid)) != nil {
+            gamesPlayed = d.integer(forKey: PersistKey.gamesPlayed(uid))
+        }
+
+        if d.object(forKey: PersistKey.gamesWon(uid)) != nil {
+            gamesWon = d.integer(forKey: PersistKey.gamesWon(uid))
+        }
+
+        if d.object(forKey: PersistKey.highestNetworth(uid)) != nil {
+            highestNetworth = d.double(forKey: PersistKey.highestNetworth(uid))
+        }
     }
 
     private func persistState() {
         let d = UserDefaults.standard
-        d.set(currentStreak, forKey: PersistKey.currentStreak)
-        d.set(streakMultiplier, forKey: PersistKey.streakMultiplier)
-        d.set(timeRemaining, forKey: PersistKey.timeRemaining)
-        d.set(adCooldownRemaining, forKey: PersistKey.adCooldownRemaining)
-        d.set(hasIncomePerMinute, forKey: PersistKey.hasIncomePerMinute)
-        d.set(hasIncomePer30s, forKey: PersistKey.hasIncomePer30s)
-        d.set(hasIncomePer15s, forKey: PersistKey.hasIncomePer15s)
-        d.set(hasIncomePer1s, forKey: PersistKey.hasIncomePer1s)
-        d.set(isStreakProtected, forKey: PersistKey.isStreakProtected)
-        d.set(hasUsedProtectionForCurrentStreak, forKey: PersistKey.hasUsedProtectionForCurrentStreak)
-        d.set(musicVolume, forKey: PersistKey.musicVolume)
-        d.set(sfxVolume, forKey: PersistKey.sfxVolume)
-        d.set(economy.coins, forKey: PersistKey.coins)
-        d.set(economy.money, forKey: PersistKey.money)
-        d.set(totalMoneyMade, forKey: PersistKey.totalMoneyMade)
-        d.set(longestWinStreak, forKey: PersistKey.longestWinStreak)
-        d.set(currentWinStreak, forKey: PersistKey.currentWinStreak)
-        d.set(longestLossStreak, forKey: PersistKey.longestLossStreak)
-        d.set(currentLossStreak, forKey: PersistKey.currentLossStreak)
-        d.set(largestSingleGain, forKey: PersistKey.largestSingleGain)
-        d.set(gamesPlayed, forKey: PersistKey.gamesPlayed)
-        d.set(gamesWon, forKey: PersistKey.gamesWon)
-        d.set(highestNetworth, forKey: PersistKey.highestNetworth)
+
+        d.set(currentStreak, forKey: PersistKey.currentStreak(uid))
+        d.set(streakMultiplier, forKey: PersistKey.streakMultiplier(uid))
+        d.set(timeRemaining, forKey: PersistKey.timeRemaining(uid))
+        d.set(adCooldownRemaining, forKey: PersistKey.adCooldownRemaining(uid))
+
+        d.set(hasIncomePerMinute, forKey: PersistKey.hasIncomePerMinute(uid))
+        d.set(hasIncomePer30s, forKey: PersistKey.hasIncomePer30s(uid))
+        d.set(hasIncomePer15s, forKey: PersistKey.hasIncomePer15s(uid))
+        d.set(hasIncomePer1s, forKey: PersistKey.hasIncomePer1s(uid))
+
+        d.set(isStreakProtected, forKey: PersistKey.isStreakProtected(uid))
+        d.set(hasUsedProtectionForCurrentStreak, forKey: PersistKey.hasUsedProtectionForCurrentStreak(uid))
+
+        d.set(musicVolume, forKey: PersistKey.musicVolume(uid))
+        d.set(sfxVolume, forKey: PersistKey.sfxVolume(uid))
+
+        d.set(economy.coins, forKey: PersistKey.coins(uid))
+        d.set(economy.money, forKey: PersistKey.money(uid))
+
+        d.set(totalMoneyMade, forKey: PersistKey.totalMoneyMade(uid))
+        d.set(longestWinStreak, forKey: PersistKey.longestWinStreak(uid))
+        d.set(currentWinStreak, forKey: PersistKey.currentWinStreak(uid))
+        d.set(longestLossStreak, forKey: PersistKey.longestLossStreak(uid))
+        d.set(currentLossStreak, forKey: PersistKey.currentLossStreak(uid))
+        d.set(largestSingleGain, forKey: PersistKey.largestSingleGain(uid))
+        d.set(gamesPlayed, forKey: PersistKey.gamesPlayed(uid))
+        d.set(gamesWon, forKey: PersistKey.gamesWon(uid))
+        d.set(highestNetworth, forKey: PersistKey.highestNetworth(uid))
     }
 
     // Consistent streak handling
@@ -1428,13 +1488,13 @@ struct ContentView: View {
                             upgradeRow(icon: "clock", title: "Pay $20,000 to earn $1 every minute while the app is open", purchased: hasIncomePerMinute) {
                                 showingIncomeMinuteConfirm = true
                             }
-                            upgradeRow(icon: "clock.fill", title: "Pay $35,000 to earn $1 every 30 seconds while the app is open", purchased: hasIncomePer30s) {
+                            upgradeRow(icon: "clock", title: "Pay $35,000 to earn $1 every 30 seconds while the app is open", purchased: hasIncomePer30s) {
                                 showingIncome30sConfirm = true
                             }
-                            upgradeRow(icon: "clock.badge.checkmark", title: "Pay $60,000 to earn $1 every 15 seconds while the app is open", purchased: hasIncomePer15s) {
+                            upgradeRow(icon: "clock", title: "Pay $60,000 to earn $1 every 15 seconds while the app is open", purchased: hasIncomePer15s) {
                                 showingIncome15sConfirm = true
                             }
-                            upgradeRow(icon: "timer", title: "Pay $500,000 to earn $1 every second while the app is open", purchased: hasIncomePer1s) {
+                            upgradeRow(icon: "clock", title: "Pay $500,000 to earn $1 every second while the app is open", purchased: hasIncomePer1s) {
                                 showingIncome1sConfirm = true
                             }
                         }
@@ -1472,7 +1532,7 @@ struct ContentView: View {
                     .background(.ultraThinMaterial)
                     .cornerRadius(12)
 
-                    Button("Coming soon") {}
+                    Button("Subscribe for $1.49/ month") {}
                         .buttonStyle(.bordered)
                         .tint(.blue)
                 }
