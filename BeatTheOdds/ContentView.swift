@@ -1521,9 +1521,9 @@ struct ContentView: View {
                         .padding(8)
                         .background(.ultraThinMaterial)
                         .cornerRadius(10)
+
                         Divider().padding(.vertical, 4)
 
-                        // Restored explicit upgrade purchase buttons (UI identical), wired to UpgradesStore
                         VStack(spacing: 10) {
                             upgradeRow(icon: "clock", title: "Pay $40,000 to earn $1 every minute?", purchased: hasIncomePerMinute) {
                                 showingIncomeMinuteConfirm = true
@@ -1538,10 +1538,14 @@ struct ContentView: View {
                                 showingIncome1sConfirm = true
                             }
                         }
-
                     }
                     .padding()
                 }
+
+                if showingIncomeMinuteConfirm { incomeMinuteOverlay }
+                if showingIncome30sConfirm { income30sOverlay }
+                if showingIncome15sConfirm { income15sOverlay }
+                if showingIncome1sConfirm { income1sOverlay }
             }
         case .premium:
             ZStack {
@@ -3161,10 +3165,7 @@ struct ContentView: View {
                     if showingHighRollerConfirm { highRollerOverlay }
                     if showingSuperHighRollerConfirm { superHighRollerOverlay }
                     if showingDollarForTwoConfirm { dollarForTwoOverlay }
-                    if showingIncomeMinuteConfirm { incomeMinuteOverlay }
-                    if showingIncome30sConfirm { income30sOverlay }
-                    if showingIncome15sConfirm { income15sOverlay }
-                    if showingIncome1sConfirm { income1sOverlay }
+                    
                 }
             }
 
