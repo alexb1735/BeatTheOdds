@@ -310,7 +310,9 @@ struct ContentView: View {
         economy.coins + economy.money
     }
     
-    
+    @State private var pendingPassiveIncome: Double = 0
+    @State private var lastActiveDate: Date = Date()
+    @State private var coinsPerSecond: Double = 0
     
     @State private var bet: Double = 10.0
     @State private var showAlert = false
@@ -465,6 +467,44 @@ struct ContentView: View {
         static func gamesWon(_ uid: String) -> String { "cv.\(uid).gamesWon" }
         static func highestNetworth(_ uid: String) -> String { "cv.\(uid).highestNetworth" }
     }
+    
+    private func updateCoinsPerSecond() {
+        var rate: Double = 0
+
+        if hasIncomePerMinute {
+            rate += 1.0 / 60.0
+        }
+        if hasIncomePer30s {
+            rate += 1.0 / 30.0
+        }
+        if hasIncomePer15s {
+            rate += 1.0 / 15.0
+        }
+        if hasIncomePer1s {
+            rate += 1.0
+        }
+
+        coinsPerSecond = rate
+        
+        print("DEBUG income flags:",
+              "minute =", hasIncomePerMinute,
+              "30s =", hasIncomePer30s,
+              "15s =", hasIncomePer15s,
+              "1s =", hasIncomePer1s,
+              "=> coinsPerSecond =", coinsPerSecond)
+
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        Task {
+            try? await Firestore.firestore().collection("users").document(uid).updateData([
+                "coinsPerSecond": rate,
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+        }
+    }
+    
+    
+    
     private func loadPersistedState() {
         let d = UserDefaults.standard
 
@@ -1485,16 +1525,16 @@ struct ContentView: View {
 
                         // Restored explicit upgrade purchase buttons (UI identical), wired to UpgradesStore
                         VStack(spacing: 10) {
-                            upgradeRow(icon: "clock", title: "Pay $20,000 to earn $1 every minute while the app is open", purchased: hasIncomePerMinute) {
+                            upgradeRow(icon: "clock", title: "Pay $40,000 to earn $1 every minute?", purchased: hasIncomePerMinute) {
                                 showingIncomeMinuteConfirm = true
                             }
-                            upgradeRow(icon: "clock", title: "Pay $35,000 to earn $1 every 30 seconds while the app is open", purchased: hasIncomePer30s) {
+                            upgradeRow(icon: "clock", title: "Pay $70,000 to earn $1 every 30 seconds?", purchased: hasIncomePer30s) {
                                 showingIncome30sConfirm = true
                             }
-                            upgradeRow(icon: "clock", title: "Pay $60,000 to earn $1 every 15 seconds while the app is open", purchased: hasIncomePer15s) {
+                            upgradeRow(icon: "clock", title: "Pay $120,000 to earn $1 every 15 seconds?", purchased: hasIncomePer15s) {
                                 showingIncome15sConfirm = true
                             }
-                            upgradeRow(icon: "clock", title: "Pay $500,000 to earn $1 every second while the app is open", purchased: hasIncomePer1s) {
+                            upgradeRow(icon: "clock", title: "Pay $1,000,000 to earn $1 every second?", purchased: hasIncomePer1s) {
                                 showingIncome1sConfirm = true
                             }
                         }
@@ -1851,7 +1891,7 @@ struct ContentView: View {
     var incomeMinuteOverlay: some View {
         overlayContainer {
             VStack(spacing: 12) {
-                Text("Pay $20,000 to earn $1 every minute while the app is open?")
+                Text("Pay $40,000 to earn $1 every minute?")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
@@ -1860,11 +1900,12 @@ struct ContentView: View {
                     Button("Close") { showingIncomeMinuteConfirm = false }
                         .buttonStyle(.bordered)
                         .buttonStyle(PressScaleButtonStyle())
-                    Button(hasIncomePerMinute ? "Purchased" : "Pay $20,000") {
+                    Button(hasIncomePerMinute ? "Purchased" : "Pay $40,000") {
                         if !hasIncomePerMinute {
-                            if economy.coins >= 20000.0 {
-                                Task { await economy.addCoins(-20000.0) }
+                            if economy.coins >= 40000.0 {
+                                Task { await economy.addCoins(-40000.0) }
                                 hasIncomePerMinute = true
+                                updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_minute") }
                             } else { showAlert = true }
                         }
@@ -1882,7 +1923,7 @@ struct ContentView: View {
     var income30sOverlay: some View {
         overlayContainer {
             VStack(spacing: 12) {
-                Text("Pay $35,000 to earn $1 every 30 seconds while the app is open?")
+                Text("Pay $70,000 to earn $1 every 30 seconds?")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
@@ -1891,11 +1932,12 @@ struct ContentView: View {
                     Button("Close") { showingIncome30sConfirm = false }
                         .buttonStyle(.bordered)
                         .buttonStyle(PressScaleButtonStyle())
-                    Button(hasIncomePer30s ? "Purchased" : "Pay $35,000") {
+                    Button(hasIncomePer30s ? "Purchased" : "Pay $70,000") {
                         if !hasIncomePer30s {
-                            if economy.coins >= 35000.0 {
-                                Task { await economy.addCoins(-35000.0) }
+                            if economy.coins >= 70000.0 {
+                                Task { await economy.addCoins(-70000.0) }
                                 hasIncomePer30s = true
+                                updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_30s") }
                             } else { showAlert = true }
                         }
@@ -1913,7 +1955,7 @@ struct ContentView: View {
     var income15sOverlay: some View {
         overlayContainer {
             VStack(spacing: 12) {
-                Text("Pay $60,000 to earn $1 every 15 seconds while the app is open?")
+                Text("Pay $120,000 to earn $1 every 15 seconds?")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
@@ -1922,11 +1964,12 @@ struct ContentView: View {
                     Button("Close") { showingIncome15sConfirm = false }
                         .buttonStyle(.bordered)
                         .buttonStyle(PressScaleButtonStyle())
-                    Button(hasIncomePer15s ? "Purchased" : "Pay $60,000") {
+                    Button(hasIncomePer15s ? "Purchased" : "Pay $120,000") {
                         if !hasIncomePer15s {
-                            if economy.coins >= 60000.0 {
-                                Task { await economy.addCoins(-60000.0) }
+                            if economy.coins >= 120000.0 {
+                                Task { await economy.addCoins(-120000.0) }
                                 hasIncomePer15s = true
+                                updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_15s") }
                             } else { showAlert = true }
                         }
@@ -1944,7 +1987,7 @@ struct ContentView: View {
     var income1sOverlay: some View {
         overlayContainer {
             VStack(spacing: 12) {
-                Text("Pay $500,000 to earn $1 every second while the app is open?")
+                Text("Pay $1,000,000 to earn $1 every second?")
                     .font(.headline)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
@@ -1953,11 +1996,12 @@ struct ContentView: View {
                     Button("Close") { showingIncome1sConfirm = false }
                         .buttonStyle(.bordered)
                         .buttonStyle(PressScaleButtonStyle())
-                    Button(hasIncomePer1s ? "Purchased" : "Pay $500,000") {
+                    Button(hasIncomePer1s ? "Purchased" : "Pay $1,000,000") {
                         if !hasIncomePer1s {
-                            if economy.coins >= 500000.0 {
-                                Task { await economy.addCoins(-500000.0) }
+                            if economy.coins >= 1000000.0 {
+                                Task { await economy.addCoins(-1000000.0) }
                                 hasIncomePer1s = true
+                                updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_1s") }
                             } else { showAlert = true }
                         }
@@ -2131,22 +2175,29 @@ struct ContentView: View {
     
     // Note: UMP/Google SDK may log SKAdNetwork/consent hints. Configure Info.plist with SKAdNetworkItems and UMP test IDs to silence in development.
     private func onAppearSetup() {
+        lastActiveDate = Date()
         lastTotals = (economy.coins, economy.money)
+        updateCoinsPerSecond()
+
         if currentStreak < 1.0 { currentStreak = 1.0 }
         streakMultiplier = max(1.0, currentStreak)
+
         NotificationCenter.default.post(name: NSNotification.Name("RewardedAd_Load"), object: nil)
+
         do {
             try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
             try AVAudioSession.sharedInstance().setActive(true)
         } catch { }
+
         startBackgroundMusic()
         applyVolumes()
         loadPersistedState()
         streakMultiplier = max(1.0, currentStreak)
-        
+
         if !hasAttemptedConsent {
             runConsentAndMaybeLoadAds()
         }
+
         Task { await loadStoredUsername() }
     }
     
@@ -2191,38 +2242,51 @@ struct ContentView: View {
     }
     
     private func onTick(_ : Date) {
-        if adCooldownRemaining > 0 { adCooldownRemaining = max(0, adCooldownRemaining - 1) }
+        print("DEBUG onTick fired", Date())
+        if adCooldownRemaining > 0 {
+            adCooldownRemaining = max(0, adCooldownRemaining - 1)
+        }
+
         if timeRemaining > 0 {
             timeRemaining -= 1
         } else {
-            Task { await economy.addCoins(100.0) }
-            recomputeStats()
+            economy.coins += 100.0
+            pendingPassiveIncome += 100.0
             timeRemaining = 3 * 60 * 60
         }
-        
+
         incomeSecondCounter += 1
-        if hasIncomePerMinute && incomeSecondCounter % 60 == 0 {
-            Task { await economy.addCoins(1.0) }
+
+        if coinsPerSecond > 0 {
+            economy.coins += coinsPerSecond
+            pendingPassiveIncome += coinsPerSecond
             recomputeStats()
         }
-        if hasIncomePer30s && incomeSecondCounter % 30 == 0 {
-            Task { await economy.addCoins(1.0) }
-            recomputeStats()
-        }
-        if hasIncomePer15s && incomeSecondCounter % 15 == 0 {
-            Task { await economy.addCoins(1.0) }
-            recomputeStats()
-        }
-        if hasIncomePer1s {
-            Task { await economy.addCoins(1.0) }
-            recomputeStats()
-        }
-        if incomeSecondCounter >= 60*60*24 {
+
+        if incomeSecondCounter >= 60 * 60 * 24 {
             incomeSecondCounter = 0
             recomputeStats()
         }
-        persistState()
+
+        if pendingPassiveIncome >= 10.0 || (incomeSecondCounter % 30 == 0 && pendingPassiveIncome > 0) {
+            let amountToFlush = pendingPassiveIncome
+            pendingPassiveIncome = 0
+
+            if amountToFlush > 0 {
+                Task { @MainActor in
+                    await economy.save()
+
+                    if let uid = Auth.auth().currentUser?.uid {
+                        try? await Firestore.firestore().collection("users").document(uid).updateData([
+                            "lastIncomeClaimAt": FieldValue.serverTimestamp(),
+                            "updatedAt": FieldValue.serverTimestamp()
+                        ])
+                    }
+                }
+            }
+        }
     }
+    
     
     private func overlayContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         ZStack {
@@ -3141,6 +3205,24 @@ struct ContentView: View {
                     }
                 }
             }
+        
+            .onChange(of: hasIncomePerMinute) { _, _ in
+                updateCoinsPerSecond()
+            }
+            .onChange(of: hasIncomePer30s) { _, _ in
+                updateCoinsPerSecond()
+            }
+            .onChange(of: hasIncomePer15s) { _, _ in
+                updateCoinsPerSecond()
+            }
+            .onChange(of: hasIncomePer1s) { _, _ in
+                updateCoinsPerSecond()
+            }
+
+            .sheet(isPresented: $showingUserInfo) {
+                userInfoSheet
+            }
+        
             .sheet(isPresented: $showingUserInfo) {
                 userInfoSheet
             }

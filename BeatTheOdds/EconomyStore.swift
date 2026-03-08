@@ -14,7 +14,40 @@ final class EconomyStore: ObservableObject {
     private var listener: ListenerRegistration?
 
     private var pendingSaveWorkItem: DispatchWorkItem?
-    private let saveDebounceInterval: TimeInterval = 0.5
+    private let saveDebounceInterval: TimeInterval = 5.0
+    
+    func claimOfflineIncomeIfNeeded() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        let ref = db.collection("users").document(uid)
+
+        do {
+            let doc = try await ref.getDocument()
+            guard let data = doc.data() else { return }
+
+            let cps = (data["coinsPerSecond"] as? Double) ?? Double(data["coinsPerSecond"] as? Int ?? 0)
+            guard cps > 0 else { return }
+
+            guard let lastTimestamp = data["lastIncomeClaimAt"] as? Timestamp else { return }
+
+            let elapsed = Date().timeIntervalSince(lastTimestamp.dateValue())
+            let cappedElapsed = min(elapsed, 60 * 60 * 12)
+
+            guard cappedElapsed > 1 else { return }
+
+            let earned = floor(cps * cappedElapsed)
+            guard earned > 0 else { return }
+
+            try await ref.updateData([
+                "coins": FieldValue.increment(earned),
+                "netWorth": FieldValue.increment(earned),
+                "lastIncomeClaimAt": FieldValue.serverTimestamp(),
+                "updatedAt": FieldValue.serverTimestamp()
+            ])
+        } catch {
+            print("Offline income claim error:", error)
+        }
+    }
 
     func start() {
         stop()
@@ -32,22 +65,28 @@ final class EconomyStore: ObservableObject {
                         "money": 0.0,
                         "coins": 100.0,
                         "netWorth": 100.0,
+                        "coinsPerSecond": 0.0,
+                        "lastIncomeClaimAt": FieldValue.serverTimestamp(),
                         "createdAt": FieldValue.serverTimestamp(),
                         "updatedAt": FieldValue.serverTimestamp()
                     ], merge: true)
                 }
 
                 await MainActor.run {
-                    self?.listener = ref.addSnapshotListener { [weak self] snap, err in
-                        guard let self else { return }
-                        if let data = snap?.data() {
+                    listener = db.collection("users").document(uid)
+                        .addSnapshotListener { [weak self] snap, err in
+                            guard let self else { return }
+                            guard let data = snap?.data() else { return }
+
                             let m = (data["money"] as? Double) ?? Double(data["money"] as? Int ?? 0)
                             let c = (data["coins"] as? Double) ?? Double(data["coins"] as? Int ?? 0)
+                            let cps = (data["coinsPerSecond"] as? Double) ?? 0
 
                             self.money = m
                             self.coins = c
+
+                           
                         }
-                    }
                 }
             } catch {
                 print("User initialization error:", error)
