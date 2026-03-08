@@ -12,35 +12,80 @@
 		293905862F549029003F92BA /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905852F549029003F92BA /* FirebaseCore */; };
 		293905882F54902F003F92BA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 293905872F54902F003F92BA /* FirebaseAuth */; };
 		2939058A2F549037003F92BA /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905892F549037003F92BA /* FirebaseFirestore */; };
+		29ECEC3E2F5D9FF400D9FDF2 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC342F5D9FF400D9FDF2 /* PrivacyView.swift */; };
+		29ECEC3F2F5D9FF400D9FDF2 /* UserStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC3A2F5D9FF400D9FDF2 /* UserStateStore.swift */; };
+		29ECEC402F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1E2F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift */; };
+		29ECEC412F5D9FF400D9FDF2 /* UserState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC392F5D9FF400D9FDF2 /* UserState.swift */; };
+		29ECEC422F5D9FF400D9FDF2 /* AuthManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC202F5D9FF400D9FDF2 /* AuthManager.swift */; };
+		29ECEC432F5D9FF400D9FDF2 /* FriendRequestsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC282F5D9FF400D9FDF2 /* FriendRequestsView.swift */; };
+		29ECEC442F5D9FF400D9FDF2 /* NetWorthStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC332F5D9FF400D9FDF2 /* NetWorthStore.swift */; };
+		29ECEC452F5D9FF400D9FDF2 /* BeatTheOddsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC232F5D9FF400D9FDF2 /* BeatTheOddsApp.swift */; };
+		29ECEC462F5D9FF400D9FDF2 /* InterstitialAdManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC302F5D9FF400D9FDF2 /* InterstitialAdManager.swift */; };
+		29ECEC472F5D9FF400D9FDF2 /* LeaderboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC312F5D9FF400D9FDF2 /* LeaderboardView.swift */; };
+		29ECEC482F5D9FF400D9FDF2 /* AuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC212F5D9FF400D9FDF2 /* AuthView.swift */; };
+		29ECEC492F5D9FF400D9FDF2 /* UpgradesStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC382F5D9FF400D9FDF2 /* UpgradesStore.swift */; };
+		29ECEC4A2F5D9FF400D9FDF2 /* ad.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */; };
+		29ECEC4B2F5D9FF400D9FDF2 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC262F5D9FF400D9FDF2 /* ContentView.swift */; };
+		29ECEC4C2F5D9FF400D9FDF2 /* FriendSearchResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC292F5D9FF400D9FDF2 /* FriendSearchResultView.swift */; };
+		29ECEC4D2F5D9FF400D9FDF2 /* rewardAd.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC362F5D9FF400D9FDF2 /* rewardAd.swift */; };
+		29ECEC4E2F5D9FF400D9FDF2 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1D2F5D9FF400D9FDF2 /* AppDelegate.swift */; };
+		29ECEC4F2F5D9FF400D9FDF2 /* FriendsManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC2A2F5D9FF400D9FDF2 /* FriendsManager.swift */; };
+		29ECEC502F5D9FF400D9FDF2 /* AdFrequencyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1C2F5D9FF400D9FDF2 /* AdFrequencyController.swift */; };
+		29ECEC512F5D9FF400D9FDF2 /* EconomyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC272F5D9FF400D9FDF2 /* EconomyStore.swift */; };
+		29ECEC522F5D9FF400D9FDF2 /* ConsentManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC252F5D9FF400D9FDF2 /* ConsentManager.swift */; };
+		29ECEC532F5D9FF400D9FDF2 /* AddFriendsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1B2F5D9FF400D9FDF2 /* AddFriendsView.swift */; };
+		29ECEC542F5D9FF400D9FDF2 /* chips-collide-1.wav in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC242F5D9FF400D9FDF2 /* chips-collide-1.wav */; };
+		29ECEC552F5D9FF400D9FDF2 /* LoseSound1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC322F5D9FF400D9FDF2 /* LoseSound1.mp3 */; };
+		29ECEC562F5D9FF400D9FDF2 /* WinSound1.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC3C2F5D9FF400D9FDF2 /* WinSound1.mp3 */; };
+		29ECEC572F5D9FF400D9FDF2 /* two_left_socks_correct.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC372F5D9FF400D9FDF2 /* two_left_socks_correct.m4a */; };
+		29ECEC582F5D9FF400D9FDF2 /* Info 2.plist in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC2E2F5D9FF400D9FDF2 /* Info 2.plist */; };
+		29ECEC592F5D9FF400D9FDF2 /* gold_sack.wav in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC2B2F5D9FF400D9FDF2 /* gold_sack.wav */; };
+		29ECEC5A2F5D9FF400D9FDF2 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC2C2F5D9FF400D9FDF2 /* GoogleService-Info.plist */; };
+		29ECEC5B2F5D9FF400D9FDF2 /* Win sound.wav in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC3B2F5D9FF400D9FDF2 /* Win sound.wav */; };
+		29ECEC5C2F5D9FF400D9FDF2 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC1F2F5D9FF400D9FDF2 /* Assets.xcassets */; };
+		29ECEC5D2F5D9FF400D9FDF2 /* REMOVE_INSTRUCTIONS.txt in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC352F5D9FF400D9FDF2 /* REMOVE_INSTRUCTIONS.txt */; };
+		29ECEC5E2F5D9FF400D9FDF2 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC2D2F5D9FF400D9FDF2 /* Info.plist */; };
+		29ECEC5F2F5D9FF400D9FDF2 /* Info 3.plist in Resources */ = {isa = PBXBuildFile; fileRef = 29ECEC2F2F5D9FF400D9FDF2 /* Info 3.plist */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2900580B2F00685400FBA5EF /* BeatTheOdds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeatTheOdds.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ad.swift; sourceTree = "<group>"; };
+		29ECEC1B2F5D9FF400D9FDF2 /* AddFriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFriendsView.swift; sourceTree = "<group>"; };
+		29ECEC1C2F5D9FF400D9FDF2 /* AdFrequencyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdFrequencyController.swift; sourceTree = "<group>"; };
+		29ECEC1D2F5D9FF400D9FDF2 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		29ECEC1E2F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AppOpenAdManager 2.swift"; sourceTree = "<group>"; };
+		29ECEC1F2F5D9FF400D9FDF2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		29ECEC202F5D9FF400D9FDF2 /* AuthManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthManager.swift; sourceTree = "<group>"; };
+		29ECEC212F5D9FF400D9FDF2 /* AuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthView.swift; sourceTree = "<group>"; };
+		29ECEC222F5D9FF400D9FDF2 /* BeatTheOdds.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = BeatTheOdds.entitlements; sourceTree = "<group>"; };
+		29ECEC232F5D9FF400D9FDF2 /* BeatTheOddsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BeatTheOddsApp.swift; sourceTree = "<group>"; };
+		29ECEC242F5D9FF400D9FDF2 /* chips-collide-1.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "chips-collide-1.wav"; sourceTree = "<group>"; };
+		29ECEC252F5D9FF400D9FDF2 /* ConsentManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsentManager.swift; sourceTree = "<group>"; };
+		29ECEC262F5D9FF400D9FDF2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		29ECEC272F5D9FF400D9FDF2 /* EconomyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EconomyStore.swift; sourceTree = "<group>"; };
+		29ECEC282F5D9FF400D9FDF2 /* FriendRequestsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendRequestsView.swift; sourceTree = "<group>"; };
+		29ECEC292F5D9FF400D9FDF2 /* FriendSearchResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendSearchResultView.swift; sourceTree = "<group>"; };
+		29ECEC2A2F5D9FF400D9FDF2 /* FriendsManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FriendsManager.swift; sourceTree = "<group>"; };
+		29ECEC2B2F5D9FF400D9FDF2 /* gold_sack.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = gold_sack.wav; sourceTree = "<group>"; };
+		29ECEC2C2F5D9FF400D9FDF2 /* GoogleService-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "GoogleService-Info.plist"; sourceTree = "<group>"; };
+		29ECEC2D2F5D9FF400D9FDF2 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		29ECEC2E2F5D9FF400D9FDF2 /* Info 2.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info 2.plist"; sourceTree = "<group>"; };
+		29ECEC2F2F5D9FF400D9FDF2 /* Info 3.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info 3.plist"; sourceTree = "<group>"; };
+		29ECEC302F5D9FF400D9FDF2 /* InterstitialAdManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InterstitialAdManager.swift; sourceTree = "<group>"; };
+		29ECEC312F5D9FF400D9FDF2 /* LeaderboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LeaderboardView.swift; sourceTree = "<group>"; };
+		29ECEC322F5D9FF400D9FDF2 /* LoseSound1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = LoseSound1.mp3; sourceTree = "<group>"; };
+		29ECEC332F5D9FF400D9FDF2 /* NetWorthStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetWorthStore.swift; sourceTree = "<group>"; };
+		29ECEC342F5D9FF400D9FDF2 /* PrivacyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PrivacyView.swift; sourceTree = "<group>"; };
+		29ECEC352F5D9FF400D9FDF2 /* REMOVE_INSTRUCTIONS.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = REMOVE_INSTRUCTIONS.txt; sourceTree = "<group>"; };
+		29ECEC362F5D9FF400D9FDF2 /* rewardAd.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = rewardAd.swift; sourceTree = "<group>"; };
+		29ECEC372F5D9FF400D9FDF2 /* two_left_socks_correct.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; path = two_left_socks_correct.m4a; sourceTree = "<group>"; };
+		29ECEC382F5D9FF400D9FDF2 /* UpgradesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpgradesStore.swift; sourceTree = "<group>"; };
+		29ECEC392F5D9FF400D9FDF2 /* UserState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserState.swift; sourceTree = "<group>"; };
+		29ECEC3A2F5D9FF400D9FDF2 /* UserStateStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStateStore.swift; sourceTree = "<group>"; };
+		29ECEC3B2F5D9FF400D9FDF2 /* Win sound.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "Win sound.wav"; sourceTree = "<group>"; };
+		29ECEC3C2F5D9FF400D9FDF2 /* WinSound1.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = WinSound1.mp3; sourceTree = "<group>"; };
 /* End PBXFileReference section */
-
-/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		290058242F015EEA00FBA5EF /* Exceptions for "BeatTheOdds" folder in "BeatTheOdds" target */ = {
-			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
-			membershipExceptions = (
-				"Info 2.plist",
-				"Info 3.plist",
-				Info.plist,
-				REMOVE_INSTRUCTIONS.txt,
-			);
-			target = 2900580A2F00685400FBA5EF /* BeatTheOdds */;
-		};
-/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
-
-/* Begin PBXFileSystemSynchronizedRootGroup section */
-		2900580D2F00685400FBA5EF /* BeatTheOdds */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				290058242F015EEA00FBA5EF /* Exceptions for "BeatTheOdds" folder in "BeatTheOdds" target */,
-			);
-			path = BeatTheOdds;
-			sourceTree = "<group>";
-		};
-/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		290058082F00685400FBA5EF /* Frameworks */ = {
@@ -61,7 +106,7 @@
 		290058022F00685400FBA5EF = {
 			isa = PBXGroup;
 			children = (
-				2900580D2F00685400FBA5EF /* BeatTheOdds */,
+				29ECEC3D2F5D9FF400D9FDF2 /* BeatTheOdds */,
 				29164F472F4F2DD800D57A44 /* Frameworks */,
 				2900580C2F00685400FBA5EF /* Products */,
 			);
@@ -82,6 +127,48 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		29ECEC3D2F5D9FF400D9FDF2 /* BeatTheOdds */ = {
+			isa = PBXGroup;
+			children = (
+				29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */,
+				29ECEC1B2F5D9FF400D9FDF2 /* AddFriendsView.swift */,
+				29ECEC1C2F5D9FF400D9FDF2 /* AdFrequencyController.swift */,
+				29ECEC1D2F5D9FF400D9FDF2 /* AppDelegate.swift */,
+				29ECEC1E2F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift */,
+				29ECEC1F2F5D9FF400D9FDF2 /* Assets.xcassets */,
+				29ECEC202F5D9FF400D9FDF2 /* AuthManager.swift */,
+				29ECEC212F5D9FF400D9FDF2 /* AuthView.swift */,
+				29ECEC222F5D9FF400D9FDF2 /* BeatTheOdds.entitlements */,
+				29ECEC232F5D9FF400D9FDF2 /* BeatTheOddsApp.swift */,
+				29ECEC242F5D9FF400D9FDF2 /* chips-collide-1.wav */,
+				29ECEC252F5D9FF400D9FDF2 /* ConsentManager.swift */,
+				29ECEC262F5D9FF400D9FDF2 /* ContentView.swift */,
+				29ECEC272F5D9FF400D9FDF2 /* EconomyStore.swift */,
+				29ECEC282F5D9FF400D9FDF2 /* FriendRequestsView.swift */,
+				29ECEC292F5D9FF400D9FDF2 /* FriendSearchResultView.swift */,
+				29ECEC2A2F5D9FF400D9FDF2 /* FriendsManager.swift */,
+				29ECEC2B2F5D9FF400D9FDF2 /* gold_sack.wav */,
+				29ECEC2C2F5D9FF400D9FDF2 /* GoogleService-Info.plist */,
+				29ECEC2D2F5D9FF400D9FDF2 /* Info.plist */,
+				29ECEC2E2F5D9FF400D9FDF2 /* Info 2.plist */,
+				29ECEC2F2F5D9FF400D9FDF2 /* Info 3.plist */,
+				29ECEC302F5D9FF400D9FDF2 /* InterstitialAdManager.swift */,
+				29ECEC312F5D9FF400D9FDF2 /* LeaderboardView.swift */,
+				29ECEC322F5D9FF400D9FDF2 /* LoseSound1.mp3 */,
+				29ECEC332F5D9FF400D9FDF2 /* NetWorthStore.swift */,
+				29ECEC342F5D9FF400D9FDF2 /* PrivacyView.swift */,
+				29ECEC352F5D9FF400D9FDF2 /* REMOVE_INSTRUCTIONS.txt */,
+				29ECEC362F5D9FF400D9FDF2 /* rewardAd.swift */,
+				29ECEC372F5D9FF400D9FDF2 /* two_left_socks_correct.m4a */,
+				29ECEC382F5D9FF400D9FDF2 /* UpgradesStore.swift */,
+				29ECEC392F5D9FF400D9FDF2 /* UserState.swift */,
+				29ECEC3A2F5D9FF400D9FDF2 /* UserStateStore.swift */,
+				29ECEC3B2F5D9FF400D9FDF2 /* Win sound.wav */,
+				29ECEC3C2F5D9FF400D9FDF2 /* WinSound1.mp3 */,
+			);
+			path = BeatTheOdds;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -96,9 +183,6 @@
 			buildRules = (
 			);
 			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				2900580D2F00685400FBA5EF /* BeatTheOdds */,
 			);
 			name = BeatTheOdds;
 			packageProductDependencies = (
@@ -156,6 +240,18 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				29ECEC542F5D9FF400D9FDF2 /* chips-collide-1.wav in Resources */,
+				29ECEC552F5D9FF400D9FDF2 /* LoseSound1.mp3 in Resources */,
+				29ECEC562F5D9FF400D9FDF2 /* WinSound1.mp3 in Resources */,
+				29ECEC572F5D9FF400D9FDF2 /* two_left_socks_correct.m4a in Resources */,
+				29ECEC582F5D9FF400D9FDF2 /* Info 2.plist in Resources */,
+				29ECEC592F5D9FF400D9FDF2 /* gold_sack.wav in Resources */,
+				29ECEC5A2F5D9FF400D9FDF2 /* GoogleService-Info.plist in Resources */,
+				29ECEC5B2F5D9FF400D9FDF2 /* Win sound.wav in Resources */,
+				29ECEC5C2F5D9FF400D9FDF2 /* Assets.xcassets in Resources */,
+				29ECEC5D2F5D9FF400D9FDF2 /* REMOVE_INSTRUCTIONS.txt in Resources */,
+				29ECEC5E2F5D9FF400D9FDF2 /* Info.plist in Resources */,
+				29ECEC5F2F5D9FF400D9FDF2 /* Info 3.plist in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +262,28 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				29ECEC3E2F5D9FF400D9FDF2 /* PrivacyView.swift in Sources */,
+				29ECEC3F2F5D9FF400D9FDF2 /* UserStateStore.swift in Sources */,
+				29ECEC402F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift in Sources */,
+				29ECEC412F5D9FF400D9FDF2 /* UserState.swift in Sources */,
+				29ECEC422F5D9FF400D9FDF2 /* AuthManager.swift in Sources */,
+				29ECEC432F5D9FF400D9FDF2 /* FriendRequestsView.swift in Sources */,
+				29ECEC442F5D9FF400D9FDF2 /* NetWorthStore.swift in Sources */,
+				29ECEC452F5D9FF400D9FDF2 /* BeatTheOddsApp.swift in Sources */,
+				29ECEC462F5D9FF400D9FDF2 /* InterstitialAdManager.swift in Sources */,
+				29ECEC472F5D9FF400D9FDF2 /* LeaderboardView.swift in Sources */,
+				29ECEC482F5D9FF400D9FDF2 /* AuthView.swift in Sources */,
+				29ECEC492F5D9FF400D9FDF2 /* UpgradesStore.swift in Sources */,
+				29ECEC4A2F5D9FF400D9FDF2 /* ad.swift in Sources */,
+				29ECEC4B2F5D9FF400D9FDF2 /* ContentView.swift in Sources */,
+				29ECEC4C2F5D9FF400D9FDF2 /* FriendSearchResultView.swift in Sources */,
+				29ECEC4D2F5D9FF400D9FDF2 /* rewardAd.swift in Sources */,
+				29ECEC4E2F5D9FF400D9FDF2 /* AppDelegate.swift in Sources */,
+				29ECEC4F2F5D9FF400D9FDF2 /* FriendsManager.swift in Sources */,
+				29ECEC502F5D9FF400D9FDF2 /* AdFrequencyController.swift in Sources */,
+				29ECEC512F5D9FF400D9FDF2 /* EconomyStore.swift in Sources */,
+				29ECEC522F5D9FF400D9FDF2 /* ConsentManager.swift in Sources */,
+				29ECEC532F5D9FF400D9FDF2 /* AddFriendsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
