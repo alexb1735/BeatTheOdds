@@ -319,6 +319,7 @@ struct ContentView: View {
     
     @State private var bet: Double = 10.0
     @State private var showAlert = false
+    @State private var alertMessage: String = ""
     @State private var showingAmountPopup: Bool = false
     @State private var popupMode: PopupMode = .add
     @State private var amountText: String = ""
@@ -328,6 +329,7 @@ struct ContentView: View {
     @State private var isAnimatingValue = false
     
     @State private var currentStreak: Double = 1.0
+    @State private var betLimitMultiplier: Double = 1.0
     @State private var lastTotals: (coins: Double, money: Double) = (0.0, 0.0)
     
     @State private var roulette2OriginalMoney: Double = 0.0
@@ -416,8 +418,14 @@ struct ContentView: View {
     @State private var showingIncome15sConfirm: Bool = false
     @State private var showingIncome1sConfirm: Bool = false
     
+    @State private var showingMilestonePopup = false
+    @State private var lastMilestoneReached: Double = 0
+    @State private var incomeIndicatorAmount: Double = 0
+    @State private var showingIncomeIndicator = false
+    
     @State private var incomeSecondCounter: Int = 0
     @State private var incomePerSecond: Double = 0
+    @State private var showingBetLimitAlert = false
     
     // Stats tracking
     @State private var totalMoneyMade: Double = 0.0
@@ -885,6 +893,17 @@ struct ContentView: View {
         lastTotals = new
     }
     
+    private func showIncomeIndicator(amount: Double) {
+        guard amount > 0 else { return }
+
+        incomeIndicatorAmount = amount
+        showingIncomeIndicator = true
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            showingIncomeIndicator = false
+        }
+    }
+    
     private func recomputeStats() {
         let currentNetworth = economy.netWorth
         if currentNetworth > highestNetworth {
@@ -906,6 +925,7 @@ struct ContentView: View {
             "coins": economy.coins,
             "money": economy.money,
             "netWorth": economy.coins + economy.money,
+            "title": playerTitle(),
             "updatedAt": FieldValue.serverTimestamp()
         ]
         do { try await doc.setData(data, merge: true) } catch { }
@@ -921,7 +941,7 @@ struct ContentView: View {
         case upgrades = "Upgrades"
         case premium = "Premium"
         case privacy = "Privacy"
-        case friends = "Friends"
+        case friends = "Leaderboards"
         var id: String { rawValue }
     }
     
@@ -1220,6 +1240,7 @@ struct ContentView: View {
                         .font(.subheadline)
                         .foregroundColor(isAnimatingCoinsIncrease ? .green : (isAnimatingCoinsDecrease ? .gray : .primary))
                 }
+
                 HStack(spacing: 0) {
                     Image(systemName: "creditcard.fill")
                         .foregroundColor(.blue)
@@ -1233,6 +1254,7 @@ struct ContentView: View {
                         .fontWeight(.bold)
                         .foregroundColor(isAnimatingMoneyIncrease ? .green : (isAnimatingMoneyDecrease ? .gray : .primary))
                 }
+
                 HStack(spacing: 12) {
                     Button(action: { popupMode = .withdraw; amountText = ""; showingAmountPopup = true }) {
                         Image(systemName: "arrow.up.right.circle")
@@ -1242,10 +1264,9 @@ struct ContentView: View {
                             .background(.ultraThinMaterial)
                             .cornerRadius(8)
                             .shadow(radius: 2)
-                            
                     }
                     .buttonStyle(PressScaleButtonStyle())
-                    
+
                     Button(action: { popupMode = .add; amountText = ""; showingAmountPopup = true }) {
                         Image(systemName: "arrow.down.left.circle")
                             .font(.headline)
@@ -1259,7 +1280,17 @@ struct ContentView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 2)
-                
+
+                VStack(alignment: .leading, spacing: 4) {
+                    ProgressView(value: milestoneProgress)
+                        .tint(.green)
+                        .animation(.easeInOut(duration: 0.3), value: milestoneProgress)
+
+                    Text("Next milestone: $\(formatNumber(currentMilestoneTarget()))")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 4)
             }
             .frame(minWidth: 200)
             .padding(12)
@@ -1268,6 +1299,7 @@ struct ContentView: View {
             .shadow(radius: 5)
             .padding(.leading, 12)
             .padding(.top, 10)
+
             Spacer()
             rightStatusPanel
         }
@@ -1490,7 +1522,51 @@ struct ContentView: View {
                         HStack { Image(systemName: "snow").foregroundColor(.cyan); Text("Longest loss streak: \(longestLossStreak)").font(.subheadline) }
                         HStack { Image(systemName: "arrow.up.right").foregroundColor(.green); Text("Largest single gain: $\(formatNumber(largestSingleGain))").font(.subheadline) }
                         HStack { Image(systemName: "percent").foregroundColor(.orange); Text("Win Rate: \(winRateString)%").font(.subheadline) }
-                        HStack { Image(systemName: "dollarsign.arrow.trianglehead.counterclockwise.rotate.90").foregroundColor(.orange); Text("Passive income: $\(String(format: "%.2f", coinsPerSecond))/sec").font(.subheadline) }
+                        VStack(alignment: .leading, spacing: 2) {
+                            HStack {
+                                Image(systemName: "dollarsign.arrow.trianglehead.counterclockwise.rotate.90")
+                                    .foregroundColor(.orange)
+                                Text("Passive income: $\(String(format: "%.2f", coinsPerSecond))/sec")
+                                    .font(.subheadline)
+                                    .monospacedDigit()
+                            }
+
+                            Text("≈ $\(formatNumber(coinsPerSecond * 60))/min • $\(formatNumber(coinsPerSecond * 3600))/hour")
+                                .animation(.easeInOut(duration: 0.25), value: coinsPerSecond)                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .monospacedDigit()
+                        }
+                        
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Image(systemName: "flag.checkered.2.crossed")
+                                    .foregroundColor(.blue)
+
+                                Text("Next milestone: $\(formatNumber(currentMilestoneTarget()))")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+
+                            ProgressView(value: milestoneProgress)
+                                .tint(.green)
+
+                            Text("$\(formatNumber(economy.netWorth)) / $\(formatNumber(currentMilestoneTarget()))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            Text(milestoneRewardUnlocked() ? "✓ \(currentMilestoneReward()) unlocked" : currentMilestoneReward())
+                                .font(.caption)
+                                .foregroundColor(milestoneRewardUnlocked() ? .green : .secondary)
+                            
+                            Text("Current max bet: $\(formatNumber(currentBetLimit()))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            Text("Next max bet: $\(formatNumber(nextMilestoneBetLimit()))")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .padding(.top, 6)
                         
                     }
                     .padding()
@@ -1583,6 +1659,7 @@ struct ContentView: View {
                         HStack { Image(systemName: "clock.arrow.circlepath").foregroundColor(.green); Text("Fixed income of $1 every 15 seconds") }
                         HStack { Image(systemName: "multiply.circle.fill").foregroundColor(.green); Text("Permanent base multiplier of 1.2x") }
                         HStack { Image(systemName: "chart.bar.xaxis.ascending").foregroundColor(.green); Text("Add friends and view leaderboard") }
+                        HStack { Image(systemName: "chart.line.text.clipboard").foregroundColor(.green); Text("View gameplay stats") }
                     }
                     .padding()
                     .background(.ultraThinMaterial)
@@ -1639,7 +1716,7 @@ struct ContentView: View {
                     VStack(spacing: 14) {
                         HStack(spacing: 10) {
                             Image(systemName: "person.3.fill").foregroundColor(.green)
-                            Text("Friends").font(.title3).bold()
+                            Text("Leaderboards").font(.title3).bold()
                         }
                         Text("Compete with friends and climb the leaderboard!")
                             .font(.footnote)
@@ -1701,6 +1778,34 @@ struct ContentView: View {
     
     // --- REPLACED THE ENTIRE INNER VSTACK OF settingsOverlay STARTS HERE ---
 
+    var milestoneOverlay: some View {
+        overlayContainer {
+            VStack(spacing: 16) {
+                Text("🏆 Milestone reached!")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("Net worth milestone: $\(formatNumber(lastMilestoneReached))")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.primary)
+
+                Text("Title unlocked: \(currentMilestoneReward())")
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+
+                Text("New max bet: $\(formatNumber(currentBetLimit()))")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                Button("Awesome") {
+                    showingMilestonePopup = false
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonStyle(PressScaleButtonStyle())
+            }
+        }
+    }
+    
     var offlineIncomeOverlay: some View {
         overlayContainer {
             VStack(spacing: 16) {
@@ -1939,7 +2044,8 @@ struct ContentView: View {
                     Button(hasIncomePerMinute ? "Purchased" : "Pay $40,000") {
                         if !hasIncomePerMinute {
                             if economy.coins >= 40000.0 {
-                                Task { await economy.addCoins(-40000.0) }
+                                economy.addCoins(-40000.0)
+                                recomputeStats()
                                 hasIncomePerMinute = true
                                 updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_minute") }
@@ -1971,7 +2077,8 @@ struct ContentView: View {
                     Button(hasIncomePer30s ? "Purchased" : "Pay $70,000") {
                         if !hasIncomePer30s {
                             if economy.coins >= 70000.0 {
-                                Task { await economy.addCoins(-70000.0) }
+                                economy.addCoins(-70000.0)
+                                recomputeStats()
                                 hasIncomePer30s = true
                                 updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_30s") }
@@ -2003,7 +2110,8 @@ struct ContentView: View {
                     Button(hasIncomePer15s ? "Purchased" : "Pay $120,000") {
                         if !hasIncomePer15s {
                             if economy.coins >= 120000.0 {
-                                Task { await economy.addCoins(-120000.0) }
+                                economy.addCoins(-120000.0)
+                                recomputeStats()
                                 hasIncomePer15s = true
                                 updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_15s") }
@@ -2035,7 +2143,8 @@ struct ContentView: View {
                     Button(hasIncomePer1s ? "Purchased" : "Pay $1,000,000") {
                         if !hasIncomePer1s {
                             if economy.coins >= 1000000.0 {
-                                Task { await economy.addCoins(-1000000.0) }
+                                economy.addCoins(-1000000.0)
+                                recomputeStats()
                                 hasIncomePer1s = true
                                 updateCoinsPerSecond()
                                 Task { await upgrades.incrementLevel(for: "u_1s") }
@@ -2184,11 +2293,20 @@ struct ContentView: View {
     
     private func confirmAmount() {
         let amount = Double(amountText) ?? 0.0
-        guard amount > 0.0 else { showingAmountPopup = false; return }
+        guard amount > 0.0 else {
+            showingAmountPopup = false
+            return
+        }
+
         switch popupMode {
         case .add:
-            if amount > economy.money { showAlert = true; return }
-            // Animate value changes instead of instantly setting via async
+            if amount > economy.money {
+                showAlert = true
+                return
+            }
+
+           
+
             let newCoins = economy.coins + amount
             let newMoney = max(0.0, economy.money - amount)
             animateValue(value: coinsBinding, to: newCoins, isCoins: true)
@@ -2196,9 +2314,18 @@ struct ContentView: View {
             playGoldSackSound()
             recomputeStats()
             showingAmountPopup = false
+
         case .withdraw:
-            if amount > economy.coins { showAlert = true; return }
-            // Animate value changes instead of instantly setting via async
+            if amount > economy.coins {
+                showAlert = true
+                return
+            }
+            
+            if economy.money + amount > currentBetLimit() {
+                        showingBetLimitAlert = true
+                        return
+                    }
+
             let newCoins = max(0.0, economy.coins - amount)
             let newMoney = economy.money + amount
             animateValue(value: coinsBinding, to: newCoins, isCoins: true)
@@ -2211,6 +2338,8 @@ struct ContentView: View {
     
     // Note: UMP/Google SDK may log SKAdNetwork/consent hints. Configure Info.plist with SKAdNetworkItems and UMP test IDs to silence in development.
     private func onAppearSetup() {
+        updateBetLimitMultiplier()
+        lastMilestoneReached = currentUnlockedMilestone()
         lastActiveDate = Date()
         lastTotals = (economy.coins, economy.money)
         updateCoinsPerSecond()
@@ -2365,6 +2494,105 @@ struct ContentView: View {
         formatter.maximumFractionDigits = 2
         formatter.locale = Locale(identifier: "en_US")
         return formatter.string(from: NSNumber(value: value)) ?? String(format: "%.2f", value)
+    }
+    
+    private func milestoneRewardUnlocked() -> Bool {
+        economy.netWorth >= currentMilestoneTarget()
+    }
+    
+    private func updateBetLimitMultiplier() {
+        let netWorth = economy.netWorth
+
+        if netWorth >= 1_000_000 {
+            betLimitMultiplier = 3.0
+        } else if netWorth >= 500_000 {
+            betLimitMultiplier = 2.5
+        } else if netWorth >= 250_000 {
+            betLimitMultiplier = 2.0
+        } else if netWorth >= 100_000 {
+            betLimitMultiplier = 1.5
+        } else {
+            betLimitMultiplier = 1.0
+        }
+    }
+    
+    private func checkForMilestoneUnlock() {
+        let unlocked = currentUnlockedMilestone()
+
+        if unlocked > lastMilestoneReached {
+            lastMilestoneReached = unlocked
+            showingMilestonePopup = true
+        }
+    }
+    
+    private func playerTitle() -> String {
+        let netWorth = economy.netWorth
+
+        if netWorth >= 5_000_000 { return "👑 Tycoon" }
+        if netWorth >= 1_000_000 { return "🥇 Millionaire" }
+        if netWorth >= 250_000 { return "🥈 High Roller" }
+        if netWorth >= 50_000 { return "🥉 Mid level goon" }
+        if netWorth >= 10_000 { return "💰 Rookie" }
+
+        return "Chud"
+    }
+    
+    private func currentMilestoneTarget() -> Double {
+        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let current = economy.netWorth
+
+        for milestone in milestones where current < milestone {
+            return milestone
+        }
+
+        return 10_000_000
+    }
+    
+    private func currentUnlockedMilestone() -> Double {
+        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let current = economy.netWorth
+
+        var unlocked: Double = 10_000
+        for milestone in milestones where current >= milestone {
+            unlocked = milestone
+        }
+        return unlocked
+    }
+
+    private func currentBetLimit() -> Double {
+        currentUnlockedMilestone() / 10.0
+    }
+    
+    private func nextMilestoneBetLimit() -> Double {
+        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let current = economy.netWorth
+
+        for milestone in milestones where current < milestone {
+            return milestone / 10.0
+        }
+
+        return milestones.last! / 10.0
+    }
+    
+    
+    private func currentMilestoneReward() -> String {
+        let target = currentMilestoneTarget()
+
+        switch target {
+        case 10_000: return "Low level chud"
+        case 50_000: return "Moderate motion"
+        case 100_000: return "Serious motion detected!"
+        case 250_000: return "Big Bank milestone"
+        case 500_000: return "Elite genius milestone"
+        case 1_000_000: return "Millionaire milestone"
+        case 5_000_000: return "Tycoon milestone"
+        default: return "Legend milestone"
+        }
+    }
+
+    private var milestoneProgress: Double {
+        let target = currentMilestoneTarget()
+        return min(max(economy.netWorth / target, 0), 1)
     }
     
     private func formatShortTime(_ seconds: Int) -> String {
@@ -3208,6 +3436,7 @@ struct ContentView: View {
                     if showingSuperHighRollerConfirm { superHighRollerOverlay }
                     if showingDollarForTwoConfirm { dollarForTwoOverlay }
                     if showingOfflineIncomePopup { offlineIncomeOverlay }
+                    if showingMilestonePopup { milestoneOverlay }
                     
                 }
             }
@@ -3257,6 +3486,11 @@ struct ContentView: View {
                 }
             }
         
+            .onChange(of: economy.netWorth) { _, _ in
+                updateBetLimitMultiplier()
+                checkForMilestoneUnlock()
+            }
+        
             .onChange(of: hasIncomePerMinute) { _, _ in
                 updateCoinsPerSecond()
             }
@@ -3276,6 +3510,11 @@ struct ContentView: View {
         
             .sheet(isPresented: $showingUserInfo) {
                 userInfoSheet
+            }
+            .alert("Bet limit reached", isPresented: $showingBetLimitAlert) {
+                Button("OK", role: .cancel) { }
+            } message: {
+                Text("Maximum bet is $\(formatNumber(currentBetLimit())) based on your current milestone.")
             }
 
         // Split the many onChange handlers into a lightweight wrapper to help the type-checker

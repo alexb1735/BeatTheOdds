@@ -15,10 +15,39 @@ struct PublicUserProfile: Identifiable {
     let username: String
     let displayName: String
     let netWorth: Double
+    var title: String?
 }
 
 @MainActor
 final class FriendsManager: ObservableObject {
+    
+    func fetchGlobalLeaderboard(limit: Int = 100) async throws -> [PublicUserProfile] {
+        let snapshot = try await db.collection("users")
+            .order(by: "netWorth", descending: true)
+            .limit(to: limit)
+            .getDocuments()
+
+        return snapshot.documents.compactMap { doc in
+            let u = doc.data()
+
+            let username = (u["username"] as? String) ?? ""
+            let displayName = (u["displayName"] as? String) ?? username
+            let title = (u["title"] as? String) ?? ""
+
+            let netWorthAny = u["netWorth"]
+            let netWorth: Double =
+                (netWorthAny as? Double)
+                ?? Double(netWorthAny as? Int ?? 0)
+
+            return PublicUserProfile(
+                id: doc.documentID,
+                username: username,
+                displayName: displayName,
+                netWorth: netWorth,
+                title: title
+            )
+        }
+    }
     
     private let db = Firestore.firestore()
 
@@ -73,11 +102,19 @@ final class FriendsManager: ObservableObject {
 
         let username = (u["username"] as? String) ?? ""
         let displayName = (u["displayName"] as? String) ?? username
+        let title = (u["title"] as? String) ?? ""
         let netWorthAny = u["netWorth"]
         let netWorth: Double =
             (netWorthAny as? Double)
             ?? Double(netWorthAny as? Int ?? 0)
-        return PublicUserProfile(id: uid, username: username, displayName: displayName, netWorth: netWorth)
+
+        return PublicUserProfile(
+            id: uid,
+            username: username,
+            displayName: displayName,
+            netWorth: netWorth,
+            title: title
+        )
     }
     
     func fetchFriendUIDs() async throws -> [String] {
@@ -97,15 +134,24 @@ final class FriendsManager: ObservableObject {
         let friendUIDs = try await fetchFriendUIDs()
         let allUIDs = [myUid] + friendUIDs
 
-        var profiles: [PublicUserProfile] = []
-        for uid in allUIDs {
-            if let p = try await fetchUserProfile(uid: uid) {
-                profiles.append(p)
+        return try await withThrowingTaskGroup(of: PublicUserProfile?.self) { group in
+            for uid in allUIDs {
+                group.addTask {
+                    try await self.fetchUserProfile(uid: uid)
+                }
             }
-        }
 
-        profiles.sort { $0.netWorth > $1.netWorth }
-        return profiles
+            var profiles: [PublicUserProfile] = []
+
+            for try await profile in group {
+                if let profile {
+                    profiles.append(profile)
+                }
+            }
+
+            profiles.sort { $0.netWorth > $1.netWorth }
+            return profiles
+        }
     }
     
     struct FriendRequest: Identifiable {
