@@ -9,34 +9,67 @@ final class EconomyStore: ObservableObject {
     @Published var coins: Double = 0
 
     var netWorth: Double { money + coins }
+    
+    
 
     private let db = Firestore.firestore()
     private var listener: ListenerRegistration?
+    
+    private var hasClaimedOfflineIncomeThisSession = false
+    
+    private var localLastIncomeClaimKey: String {
+        let uid = Auth.auth().currentUser?.uid ?? "guest"
+        return "economy.\(uid).lastIncomeClaimAt"
+    }
+    
+    private func saveLocalLastIncomeClaimDate(_ date: Date) {
+        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: localLastIncomeClaimKey)
+    }
+
+    private func loadLocalLastIncomeClaimDate() -> Date? {
+        let timestamp = UserDefaults.standard.double(forKey: localLastIncomeClaimKey)
+        guard timestamp > 0 else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
+    }
 
     private var pendingSaveWorkItem: DispatchWorkItem?
     private let saveDebounceInterval: TimeInterval = 5.0
     
-    func claimOfflineIncomeIfNeeded() async {
-        guard let uid = Auth.auth().currentUser?.uid else { return }
+    func claimOfflineIncomeIfNeeded() async -> Double {
+        guard !hasClaimedOfflineIncomeThisSession else { return 0 }
+        hasClaimedOfflineIncomeThisSession = true
+        
+        guard let uid = Auth.auth().currentUser?.uid else { return 0 }
 
         let ref = db.collection("users").document(uid)
 
         do {
             let doc = try await ref.getDocument()
-            guard let data = doc.data() else { return }
+            guard let data = doc.data() else { return 0}
 
             let cps = (data["coinsPerSecond"] as? Double) ?? Double(data["coinsPerSecond"] as? Int ?? 0)
-            guard cps > 0 else { return }
+            guard cps > 0 else { return 0}
 
-            guard let lastTimestamp = data["lastIncomeClaimAt"] as? Timestamp else { return }
+            let firestoreDate = (data["lastIncomeClaimAt"] as? Timestamp)?.dateValue()
+            let localDate = loadLocalLastIncomeClaimDate()
 
-            let elapsed = Date().timeIntervalSince(lastTimestamp.dateValue())
+            guard let lastClaimDate = [localDate, firestoreDate].compactMap({ $0 }).max() else { return 0}
+            print("DEBUG offline cps =", cps)
+            print("DEBUG offline localDate =", String(describing: localDate))
+            print("DEBUG offline firestoreDate =", String(describing: firestoreDate))
+            print("DEBUG offline using lastClaimDate =", lastClaimDate)
+            print("DEBUG offline now =", Date())
+
+            let elapsed = Date().timeIntervalSince(lastClaimDate)
             let cappedElapsed = min(elapsed, 60 * 60 * 12)
+            print("DEBUG offline elapsed =", elapsed)
+            print("DEBUG offline cappedElapsed =", cappedElapsed)
 
-            guard cappedElapsed > 1 else { return }
+            guard cappedElapsed > 1 else { return 0}
 
             let earned = floor(cps * cappedElapsed)
-            guard earned > 0 else { return }
+            print("DEBUG offline earned =", earned)
+            guard earned > 0 else { return 0}
 
             try await ref.updateData([
                 "coins": FieldValue.increment(earned),
@@ -44,8 +77,15 @@ final class EconomyStore: ObservableObject {
                 "lastIncomeClaimAt": FieldValue.serverTimestamp(),
                 "updatedAt": FieldValue.serverTimestamp()
             ])
-        } catch {
+
+            self.coins += earned
+            saveLocalLastIncomeClaimDate(Date())
+            return earned
+        }
+        
+        catch {
             print("Offline income claim error:", error)
+            return 0
         }
     }
 
@@ -88,6 +128,9 @@ final class EconomyStore: ObservableObject {
                            
                         }
                 }
+                
+                
+                
             } catch {
                 print("User initialization error:", error)
             }
@@ -134,5 +177,22 @@ final class EconomyStore: ObservableObject {
     func addCoins(_ amount: Double) {
         coins += amount
         scheduleSave()
+    }
+    
+    func resetIncomeTimerIfNeeded() async {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+
+        let now = Date()
+        saveLocalLastIncomeClaimDate(now)
+
+        let ref = db.collection("users").document(uid)
+
+        do {
+            try await ref.setData([
+                "lastIncomeClaimAt": Timestamp(date: now)
+            ], merge: true)
+        } catch {
+            print("Reset income timer error:", error)
+        }
     }
 }

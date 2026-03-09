@@ -310,6 +310,9 @@ struct ContentView: View {
         economy.coins + economy.money
     }
     
+    @State private var showingOfflineIncomePopup = false
+    @State private var offlineIncomeAmount: Double = 0
+    
     @State private var pendingPassiveIncome: Double = 0
     @State private var lastActiveDate: Date = Date()
     @State private var coinsPerSecond: Double = 0
@@ -414,6 +417,7 @@ struct ContentView: View {
     @State private var showingIncome1sConfirm: Bool = false
     
     @State private var incomeSecondCounter: Int = 0
+    @State private var incomePerSecond: Double = 0
     
     // Stats tracking
     @State private var totalMoneyMade: Double = 0.0
@@ -886,6 +890,12 @@ struct ContentView: View {
         if currentNetworth > highestNetworth {
             highestNetworth = currentNetworth
         }
+        coinsPerSecond = 0
+
+        if hasIncomePerMinute { coinsPerSecond += 1.0 / 60.0 }
+        if hasIncomePer30s { coinsPerSecond += 1.0 / 30.0 }
+        if hasIncomePer15s { coinsPerSecond += 1.0 / 15.0 }
+        if hasIncomePer1s { coinsPerSecond += 1.0 }
     }
     
     private func updateUserEconomyToFirestore() async {
@@ -1474,12 +1484,14 @@ struct ContentView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         let winRateString = gamesPlayed > 0 ? String(format: "%.1f", Double(gamesWon) * 100.0 / Double(gamesPlayed)) : "0"
+                        HStack { Image(systemName: "crown").foregroundColor(.yellow); Text("Highest net worth: $\(formatNumber(highestNetworth))").font(.subheadline) }
                         HStack { Image(systemName: "dollarsign.circle").foregroundColor(.blue); Text("Total money made: $\(formatNumber(totalMoneyMade))").font(.subheadline) }
                         HStack { Image(systemName: "flame").foregroundColor(.red); Text("Longest win streak: \(longestWinStreak)").font(.subheadline) }
                         HStack { Image(systemName: "snow").foregroundColor(.cyan); Text("Longest loss streak: \(longestLossStreak)").font(.subheadline) }
                         HStack { Image(systemName: "arrow.up.right").foregroundColor(.green); Text("Largest single gain: $\(formatNumber(largestSingleGain))").font(.subheadline) }
                         HStack { Image(systemName: "percent").foregroundColor(.orange); Text("Win Rate: \(winRateString)%").font(.subheadline) }
-                        HStack { Image(systemName: "crown").foregroundColor(.yellow); Text("Highest net worth: $\(formatNumber(highestNetworth))").font(.subheadline) }
+                        HStack { Image(systemName: "dollarsign.arrow.trianglehead.counterclockwise.rotate.90").foregroundColor(.orange); Text("Passive income: $\(String(format: "%.2f", coinsPerSecond))/sec").font(.subheadline) }
+                        
                     }
                     .padding()
                     .background(.ultraThinMaterial)
@@ -1689,6 +1701,26 @@ struct ContentView: View {
     
     // --- REPLACED THE ENTIRE INNER VSTACK OF settingsOverlay STARTS HERE ---
 
+    var offlineIncomeOverlay: some View {
+        overlayContainer {
+            VStack(spacing: 16) {
+                Text("Welcome back!")
+                    .font(.title2)
+                    .fontWeight(.bold)
+
+                Text("You earned $\(formatNumber(offlineIncomeAmount)) while away 💰")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.primary)
+
+                Button("Collect") {
+                    showingOfflineIncomePopup = false
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonStyle(PressScaleButtonStyle())
+            }
+        }
+    }
+    
     var protectionOverlay: some View {
         overlayContainer {
             VStack(spacing: 12) {
@@ -2203,6 +2235,16 @@ struct ContentView: View {
         }
 
         Task { await loadStoredUsername() }
+        
+        Task {
+            let earned = await economy.claimOfflineIncomeIfNeeded()
+
+            if earned > 0 {
+                offlineIncomeAmount = earned
+                showingOfflineIncomePopup = true
+            }
+        }
+        
     }
     
     // New function to load stored username and displayName from Firestore
@@ -2246,7 +2288,7 @@ struct ContentView: View {
     }
     
     private func onTick(_ : Date) {
-        print("DEBUG onTick fired", Date())
+        
         if adCooldownRemaining > 0 {
             adCooldownRemaining = max(0, adCooldownRemaining - 1)
         }
@@ -3165,6 +3207,7 @@ struct ContentView: View {
                     if showingHighRollerConfirm { highRollerOverlay }
                     if showingSuperHighRollerConfirm { superHighRollerOverlay }
                     if showingDollarForTwoConfirm { dollarForTwoOverlay }
+                    if showingOfflineIncomePopup { offlineIncomeOverlay }
                     
                 }
             }
@@ -3203,6 +3246,13 @@ struct ContentView: View {
                 if newPhase == .active {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
                         AppOpenAdManager.shared.tryToPresentAd()
+                    }
+                }
+                
+                else {
+                    Task { @MainActor in
+                        await economy.resetIncomeTimerIfNeeded()
+                        await economy.save()
                     }
                 }
             }

@@ -58,9 +58,7 @@ private struct RootView: View {
                         economy.start()
                         upgrades.start()
 
-                        Task {
-                            await economy.claimOfflineIncomeIfNeeded()
-                        }
+                        
                     }
                     .onDisappear {
                         economy.stop()
