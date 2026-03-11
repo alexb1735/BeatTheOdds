@@ -71,10 +71,18 @@ struct LeaderboardView: View {
                             
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
-                                    Text(p.displayName)
-                                        .font(.headline)
-                                        .lineLimit(1)
-                                        .minimumScaleFactor(0.7)
+                                    HStack(spacing: 4) {
+                                        Text(p.displayName)
+                                            .font(.headline)
+                                            .lineLimit(1)
+                                            .minimumScaleFactor(0.7)
+
+                                        if p.title == "Premium" {
+                                            Image(systemName: "crown.fill")
+                                                .foregroundColor(.yellow)
+                                                .font(.caption)
+                                        }
+                                    }
                                     
                                     if isMe {
                                         Text("YOU")
@@ -136,13 +144,13 @@ struct LeaderboardView: View {
                         }
                     }
                 }
-                .refreshable { await load() }
+                .refreshable { await load(forceRefresh: true) }
             }
         }
     }
 
     @MainActor
-    private func load() async {
+    private func load(forceRefresh: Bool = false) async {
         isLoading = true
         errorText = nil
         myUID = Auth.auth().currentUser?.uid ?? ""
@@ -153,9 +161,9 @@ struct LeaderboardView: View {
 
             switch mode {
             case .friends:
-                fetched = try await friends.fetchFriendsLeaderboard()
+                fetched = try await friends.fetchFriendsLeaderboard(forceRefresh: forceRefresh)
             case .global:
-                fetched = try await friends.fetchGlobalLeaderboard()
+                fetched = try await friends.fetchGlobalLeaderboard(forceRefresh: forceRefresh)
             }
 
             entries = fetched.sorted { $0.netWorth > $1.netWorth }

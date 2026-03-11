@@ -320,6 +320,45 @@ struct ContentView: View {
     }
     
     
+    @State private var showingDailyRewardPopup = false
+    @State private var dailyRewardAmount: Double = 250
+    @State private var lastDailyRewardClaimDate: Double = 0
+    @State private var dailyRewardStreak: Int = 0
+    @State private var lastDailyRewardClaimDay: String = ""
+    
+    var canClaimDailyReward: Bool {
+        let last = Date(timeIntervalSince1970: lastDailyRewardClaimDate)
+        return Date().timeIntervalSince(last) >= 86400
+    }
+    
+    private var todayKey: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+
+    private var yesterdayKey: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date())
+    }
+
+    private var currentDailyRewardAmount: Double {
+        switch dailyRewardStreak {
+        case 0: return 250
+        case 1: return 500
+        case 2: return 750
+        case 3: return 1000
+        case 4: return 1500
+        case 5: return 2500
+        default: return 5000
+        }
+    }
+    
+    private var dailyRewardTiers: [Double] {
+        [250, 500, 750, 1000, 1500, 2500, 5000]
+    }
+    
     @State private var lastLeaderboardUpdate: Date = .distantPast
     @State private var showingOfflineIncomePopup = false
     @State private var offlineIncomeAmount: Double = 0
@@ -420,6 +459,11 @@ struct ContentView: View {
     }
     
     // Upgrades: income tiers and overlay toggles
+    
+    @State private var earningsBoostMultiplier: Double = 1.0
+    @State private var earningsBoostTimeRemaining: Int = 0
+    @State private var showingEarningsBoostPopup: Bool = false
+    
     @State private var hasIncomePerMinute: Bool = false
     @State private var hasIncomePer30s: Bool = false
     @State private var hasIncomePer15s: Bool = false
@@ -460,6 +504,14 @@ struct ContentView: View {
 
     // MARK: - Persistence keys
     private enum PersistKey {
+        
+        static func earningsBoostMultiplier(_ uid: String) -> String { "cv.\(uid).earningsBoostMultiplier" }
+        static func earningsBoostTimeRemaining(_ uid: String) -> String { "cv.\(uid).earningsBoostTimeRemaining" }
+        
+        static func lastDailyRewardClaimDate(_ uid: String) -> String { "cv.\(uid).lastDailyRewardClaimDate" }
+        static func dailyRewardStreak(_ uid: String) -> String { "cv.\(uid).dailyRewardStreak" }
+        static func lastDailyRewardClaimDay(_ uid: String) -> String { "cv.\(uid).lastDailyRewardClaimDay" }
+        
         static func currentStreak(_ uid: String) -> String { "cv.\(uid).currentStreak" }
         static func streakMultiplier(_ uid: String) -> String { "cv.\(uid).streakMultiplier" }
         static func timeRemaining(_ uid: String) -> String { "cv.\(uid).timeRemaining" }
@@ -491,6 +543,25 @@ struct ContentView: View {
         static func highestNetworth(_ uid: String) -> String { "cv.\(uid).highestNetworth" }
     }
     
+    private func claimDailyReward(multiplier: Double) {
+        if lastDailyRewardClaimDay == yesterdayKey {
+            dailyRewardStreak = min(dailyRewardStreak + 1, dailyRewardTiers.count - 1)
+        } else if lastDailyRewardClaimDay != todayKey {
+            dailyRewardStreak = 0
+        }
+
+        economy.coins += currentDailyRewardAmount * multiplier
+        recomputeStats()
+
+        lastDailyRewardClaimDate = Date().timeIntervalSince1970
+        lastDailyRewardClaimDay = todayKey
+        showingDailyRewardPopup = false
+
+        Task {
+            await saveUserEconomyToFirestore()
+        }
+    }
+    
     private func updateCoinsPerSecond() {
         var rate: Double = 0
 
@@ -519,6 +590,11 @@ struct ContentView: View {
         
     }
     
+    private func activateEarningsBoost() {
+        earningsBoostMultiplier = 2.0
+        earningsBoostTimeRemaining = 600 // 10 minutes
+    }
+    
     
     
     private func loadPersistedState() {
@@ -540,6 +616,14 @@ struct ContentView: View {
 
         if d.object(forKey: PersistKey.adCooldownRemaining(uid)) != nil {
             adCooldownRemaining = max(0, d.integer(forKey: PersistKey.adCooldownRemaining(uid)))
+        }
+        
+        if d.object(forKey: PersistKey.earningsBoostMultiplier(uid)) != nil {
+            earningsBoostMultiplier = d.double(forKey: PersistKey.earningsBoostMultiplier(uid))
+        }
+
+        if d.object(forKey: PersistKey.earningsBoostTimeRemaining(uid)) != nil {
+            earningsBoostTimeRemaining = d.integer(forKey: PersistKey.earningsBoostTimeRemaining(uid))
         }
 
         hasIncomePerMinute = d.bool(forKey: PersistKey.hasIncomePerMinute(uid))
@@ -601,6 +685,16 @@ struct ContentView: View {
         if d.object(forKey: PersistKey.highestNetworth(uid)) != nil {
             highestNetworth = d.double(forKey: PersistKey.highestNetworth(uid))
         }
+        
+        if d.object(forKey: PersistKey.lastDailyRewardClaimDate(uid)) != nil {
+            lastDailyRewardClaimDate = d.double(forKey: PersistKey.lastDailyRewardClaimDate(uid))
+        }
+
+        if d.object(forKey: PersistKey.dailyRewardStreak(uid)) != nil {
+            dailyRewardStreak = d.integer(forKey: PersistKey.dailyRewardStreak(uid))
+        }
+
+        lastDailyRewardClaimDay = d.string(forKey: PersistKey.lastDailyRewardClaimDay(uid)) ?? ""
     }
 
     private func persistState() {
@@ -610,6 +704,9 @@ struct ContentView: View {
         d.set(streakMultiplier, forKey: PersistKey.streakMultiplier(uid))
         d.set(timeRemaining, forKey: PersistKey.timeRemaining(uid))
         d.set(adCooldownRemaining, forKey: PersistKey.adCooldownRemaining(uid))
+        
+        d.set(earningsBoostMultiplier, forKey: PersistKey.earningsBoostMultiplier(uid))
+        d.set(earningsBoostTimeRemaining, forKey: PersistKey.earningsBoostTimeRemaining(uid))
 
         d.set(hasIncomePerMinute, forKey: PersistKey.hasIncomePerMinute(uid))
         d.set(hasIncomePer30s, forKey: PersistKey.hasIncomePer30s(uid))
@@ -634,12 +731,16 @@ struct ContentView: View {
         d.set(gamesPlayed, forKey: PersistKey.gamesPlayed(uid))
         d.set(gamesWon, forKey: PersistKey.gamesWon(uid))
         d.set(highestNetworth, forKey: PersistKey.highestNetworth(uid))
+        
+        d.set(lastDailyRewardClaimDate, forKey: PersistKey.lastDailyRewardClaimDate(uid))
+        d.set(dailyRewardStreak, forKey: PersistKey.dailyRewardStreak(uid))
+        d.set(lastDailyRewardClaimDay, forKey: PersistKey.lastDailyRewardClaimDay(uid))
     }
 
     // Consistent streak handling
     private func applyWin(to binding: Binding<Double>, baseChange: Double, isCoins: Bool) {
         // Apply current multiplier to winnings; first win uses current, then increment for next time
-        let winnings = baseChange * streakMultiplier
+        let winnings = baseChange * streakMultiplier * earningsBoostMultiplier
         let target = binding.wrappedValue + winnings
         playRewardSound()
         
@@ -1100,12 +1201,12 @@ struct ContentView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
                             .font(.title2)
-                        Text("Watch an ad to earn $100")
+                        Text("Earn $100!")
                             .font(.headline)
                     }
                     .foregroundColor(.white)
                     .padding()
-                    .frame(maxWidth: .infinity, minHeight: 60)
+                    .frame(minHeight: 60)
                     .background(LinearGradient(gradient: Gradient(colors: [Color.blue, Color.green]), startPoint: .leading, endPoint: .trailing))
                     .cornerRadius(12)
                     .shadow(radius: 6)
@@ -1420,6 +1521,47 @@ struct ContentView: View {
             .background(.ultraThinMaterial)
             .cornerRadius(12)
             .shadow(radius: 6)
+            
+            if earningsBoostTimeRemaining > 0 {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("⚡ 2× Earnings Boost")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.yellow)
+
+                    Text(formatTime(earningsBoostTimeRemaining))
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundColor(.primary)
+                }
+                .padding(12)
+                .background(.ultraThinMaterial)
+                .cornerRadius(12)
+                .shadow(radius: 6)
+            } else {
+                Button(action: {
+                    pauseBackgroundMusic()
+                    rewardedAdManager.showAd {
+                        activateEarningsBoost()
+                        resumeBackgroundMusic()
+                    }
+                }) {
+                    VStack(spacing: 2) {
+                        Text("⚡ 2× Earnings Boost")
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                        Text("Watch ad • 10 min")
+                            .font(.caption2)
+                    }
+                    .foregroundColor(.blue)
+                    .padding(12)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(12)
+                    .shadow(radius: 6)
+                }
+                .buttonStyle(PressScaleButtonStyle())
+            }
+            
             if streakMultiplier > 1.4 && !hasUsedProtectionForCurrentStreak {
                 Button(action: { showingProtectionConfirm = true }) {
                     Text("Watch ad to protect!")
@@ -1508,7 +1650,7 @@ struct ContentView: View {
                 SectionRow(icon: "hand.raised.fill", title: "Privacy", isSelected: false) {
                     sheetSection = .privacy; selectedSettingsTabID = SettingsSection.privacy.id; activeSheet = .settings
                 }
-                SectionRow(icon: "person.3.fill", title: "Friends", isSelected: false) {
+                SectionRow(icon: "person.3.fill", title: "Leaderboards", isSelected: false) {
                     sheetSection = .friends; selectedSettingsTabID = SettingsSection.friends.id; activeSheet = .settings
                 }
                 Button("Log out") {
@@ -1791,24 +1933,81 @@ struct ContentView: View {
                 .ignoresSafeArea()
 
                 VStack(spacing: 14) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "crown.fill").foregroundColor(.yellow)
-                        Text("Premium Pass").font(.title3).bold()
-                    }
-                    Text("Unlock exclusive tools and remove ads for a smoother experience!")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
+                    VStack(spacing: 8) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "crown.fill")
+                                .foregroundColor(.yellow)
+                            Text("Premium Pass")
+                                .font(.title2)
+                                .bold()
+                        }
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack { Image(systemName: "nosign.app.fill").foregroundColor(.green); Text("Remove popup ads") }
-                        HStack { Image(systemName: "multiply.circle.fill").foregroundColor(.green); Text("Permanent base multiplier of 1.2x") }
-                        HStack { Image(systemName: "chart.bar.xaxis.ascending").foregroundColor(.green); Text("Add friends and view leaderboard") }
-                        HStack { Image(systemName: "chart.line.text.clipboard").foregroundColor(.green); Text("View gameplay stats") }
+                        Text("Play smarter, faster, and ad-free.")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+
+                        Text("Unlock the full BeatTheOdds experience with powerful permanent upgrades.")
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                            .multilineTextAlignment(.center)
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            Image(systemName: "nosign")
+                                .foregroundColor(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Ad-free gameplay")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("No banner, interstitial, or app-open ads.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "bolt.fill")
+                                .foregroundColor(.yellow)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Permanent 1.2x multiplier")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("Start every run with a stronger base multiplier.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "person.3.fill")
+                                .foregroundColor(.blue)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Leaderboards & friends")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("Add friends and compete for the top spot.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+
+                        HStack(spacing: 10) {
+                            Image(systemName: "chart.xyaxis.line")
+                                .foregroundColor(.purple)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Advanced stats")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Text("Track streaks, gains, win rate, and progress.")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                     .padding()
                     .background(.ultraThinMaterial)
-                    .cornerRadius(12)
+                    .cornerRadius(14)
 
                     if premium.isPremiumActive {
                         Text("Premium is active on this account")
@@ -1831,14 +2030,43 @@ struct ContentView: View {
                         .font(.caption2)
                         .foregroundColor(.secondary)
                     
-                    Button(premium.isPremiumActive ? "Premium Active" : "Subscribe for €0,99 / month") {
-                        Task {
-                            await premium.purchaseMonthlyPass()
+                    Text("Best value for active players")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.blue)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.blue.opacity(0.12))
+                        .cornerRadius(10)
+                    
+                    VStack(spacing: 8) {
+
+                        Button {
+                            Task {
+                                await premium.purchaseMonthlyPass()
+                            }
+                        } label: {
+                            VStack(spacing: 2) {
+                                Text("Start Premium")
+                                    .font(.headline)
+
+                                Text("€0.99 / month • Cancel anytime")
+                                    .font(.caption)
+                                    .opacity(0.85)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.blue)
+                        .disabled(premium.isPremiumActive || premium.isLoading)
+
+                        if premium.isPremiumActive {
+                            Text("Premium is active on this account")
+                                .font(.caption)
+                                .foregroundColor(.green)
                         }
                     }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.blue)
-                    .disabled(premium.isPremiumActive || premium.isLoading)
                     
                     Button("Restore Purchases") {
                         Task {
@@ -2006,6 +2234,101 @@ struct ContentView: View {
     
     // --- REPLACED THE ENTIRE INNER VSTACK OF settingsOverlay STARTS HERE ---
 
+    var dailyRewardPopup: some View {
+        ZStack {
+            Color.black.opacity(0.15)
+                .ignoresSafeArea()
+            ScrollView{
+            VStack(spacing: 16) {
+                Text("Daily Reward")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                Text("Come back every day for free $$$!")
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.primary)
+                
+                Text("Day \(max(dailyRewardStreak, 0) + 1) reward")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+                
+                VStack(spacing: 8) {
+                    ForEach(Array(dailyRewardTiers.enumerated()), id: \.offset) { index, amount in
+                        let dayNumber = index + 1
+                        let isCurrentDay = dayNumber == min(dailyRewardStreak + 1, dailyRewardTiers.count)
+                        let isClaimed = dayNumber <= dailyRewardStreak
+                        
+                        HStack {
+                            Text("Day \(dayNumber)")
+                                .font(.subheadline)
+                                .fontWeight(isCurrentDay ? .bold : .regular)
+                            
+                            Spacer()
+                            
+                            Text("$\(formatNumber(amount))")
+                                .font(.subheadline)
+                                .fontWeight(isCurrentDay ? .bold : .regular)
+                            
+                            if isClaimed {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                            } else if isCurrentDay {
+                                Image(systemName: "star.circle.fill")
+                                    .foregroundColor(.yellow)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            isCurrentDay
+                            ? Color.yellow.opacity(0.15)
+                            : (isClaimed ? Color.green.opacity(0.12) : Color.clear)
+                        )
+                        .cornerRadius(10)
+                    }
+                }
+                .padding(.vertical, 4)
+                
+                Text("+$\(formatNumber(currentDailyRewardAmount))")
+                    .font(.title)
+                    .foregroundColor(.green)
+                
+                Button("Claim") {
+                    claimDailyReward(multiplier: 1.0)
+                }
+                .buttonStyle(.borderedProminent)
+                .buttonStyle(PressScaleButtonStyle())
+                
+                Button {
+                    pauseBackgroundMusic()
+
+                    rewardedAdManager.showAd {
+                        claimDailyReward(multiplier: 2.0)
+                        resumeBackgroundMusic()
+                    }
+
+                } label: {
+                    VStack(spacing: 2) {
+                        Text("Double Reward")
+                            .font(.headline)
+
+                        Text("Watch ad")
+                            .font(.caption)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .buttonStyle(PressScaleButtonStyle())
+                
+            }
+            .padding()
+        }
+            .frame(maxWidth: 320)
+            .background(.ultraThinMaterial)
+            .cornerRadius(16)
+            .shadow(radius: 10)
+        }
+    }
+    
     var milestoneOverlay: some View {
         overlayContainer {
             VStack(spacing: 16) {
@@ -2622,6 +2945,16 @@ struct ContentView: View {
             }
         }
         
+        if !lastDailyRewardClaimDay.isEmpty &&
+           lastDailyRewardClaimDay != todayKey &&
+           lastDailyRewardClaimDay != yesterdayKey {
+            dailyRewardStreak = 0
+        }
+        
+        if canClaimDailyReward && !showingOfflineIncomePopup && !showingMilestonePopup {
+            showingDailyRewardPopup = true
+        }
+        
     }
     
     // New function to load stored username and displayName from Firestore
@@ -2669,6 +3002,15 @@ struct ContentView: View {
         if adCooldownRemaining > 0 {
             adCooldownRemaining = max(0, adCooldownRemaining - 1)
         }
+        
+        if earningsBoostTimeRemaining > 0 {
+            earningsBoostTimeRemaining -= 1
+
+            if earningsBoostTimeRemaining <= 0 {
+                earningsBoostTimeRemaining = 0
+                earningsBoostMultiplier = 1.0
+            }
+        }
 
         if timeRemaining > 0 {
             timeRemaining -= 1
@@ -2681,11 +3023,12 @@ struct ContentView: View {
         incomeSecondCounter += 1
 
         if coinsPerSecond > 0 {
-            economy.coins += coinsPerSecond
-            pendingPassiveIncome += coinsPerSecond
+            let boostedIncome = coinsPerSecond * earningsBoostMultiplier
+            economy.coins += boostedIncome
+            pendingPassiveIncome += boostedIncome
             recomputeStats()
         }
-
+        
         if incomeSecondCounter >= 60 * 60 * 24 {
             incomeSecondCounter = 0
             recomputeStats()
@@ -3682,6 +4025,7 @@ struct ContentView: View {
                     if showingDollarForTwoConfirm { dollarForTwoOverlay }
                     if showingOfflineIncomePopup { offlineIncomeOverlay }
                     if showingMilestonePopup { milestoneOverlay }
+                    if showingDailyRewardPopup { dailyRewardPopup }
                     
                 }
             }

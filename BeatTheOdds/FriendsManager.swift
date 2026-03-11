@@ -21,13 +21,21 @@ struct PublicUserProfile: Identifiable {
 @MainActor
 final class FriendsManager: ObservableObject {
     
-    func fetchGlobalLeaderboard(limit: Int = 100) async throws -> [PublicUserProfile] {
+    func fetchGlobalLeaderboard(limit: Int = 100, forceRefresh: Bool = false) async throws -> [PublicUserProfile] {
+        
+        if !forceRefresh,
+           let lastFetch = lastGlobalLeaderboardFetch,
+           Date().timeIntervalSince(lastFetch) < globalLeaderboardCacheDuration,
+           !cachedGlobalLeaderboard.isEmpty {
+            return cachedGlobalLeaderboard
+        }
+        
         let snapshot = try await db.collection("users")
             .order(by: "netWorth", descending: true)
             .limit(to: limit)
             .getDocuments()
 
-        return snapshot.documents.compactMap { doc in
+        let profiles = snapshot.documents.compactMap { doc in
             let u = doc.data()
 
             let username = (u["username"] as? String) ?? ""
@@ -47,9 +55,22 @@ final class FriendsManager: ObservableObject {
                 title: title
             )
         }
+
+        cachedGlobalLeaderboard = profiles
+        lastGlobalLeaderboardFetch = Date()
+
+        return profiles
     }
     
     private let db = Firestore.firestore()
+    
+    private var cachedFriendsLeaderboard: [PublicUserProfile] = []
+    private var lastFriendsLeaderboardFetch: Date? = nil
+    private let friendsLeaderboardCacheDuration: TimeInterval = 60
+    
+    private var cachedGlobalLeaderboard: [PublicUserProfile] = []
+    private var lastGlobalLeaderboardFetch: Date? = nil
+    private let globalLeaderboardCacheDuration: TimeInterval = 60
 
     func findUser(byUsername username: String) async throws -> PublicUserProfile? {
         let normalized = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -128,9 +149,17 @@ final class FriendsManager: ObservableObject {
         return snap.documents.map { $0.documentID }
     }
 
-    func fetchFriendsLeaderboard() async throws -> [PublicUserProfile] {
+    func fetchFriendsLeaderboard(forceRefresh: Bool = false) async throws -> [PublicUserProfile] {
         guard let myUid = Auth.auth().currentUser?.uid else { return [] }
 
+        if !forceRefresh,
+           let lastFetch = lastFriendsLeaderboardFetch,
+           Date().timeIntervalSince(lastFetch) < friendsLeaderboardCacheDuration,
+           !cachedFriendsLeaderboard.isEmpty {
+            return cachedFriendsLeaderboard
+        }
+        
+        
         let friendUIDs = try await fetchFriendUIDs()
         let allUIDs = Array(Set([myUid] + friendUIDs))
 
@@ -172,6 +201,10 @@ final class FriendsManager: ObservableObject {
         }
 
         profiles.sort { $0.netWorth > $1.netWorth }
+
+        cachedFriendsLeaderboard = profiles
+        lastFriendsLeaderboardFetch = Date()
+
         return profiles
     }
     

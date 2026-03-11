@@ -12,6 +12,8 @@ final class AdFrequencyController {
 
     /// Counts user actions since the last interstitial.
     private var actionCount: Int = 0
+    private var lastInterstitialShownAt: Date? = nil
+    private let minimumInterstitialInterval: TimeInterval = 20
 
     private init() {}
 
@@ -26,7 +28,16 @@ final class AdFrequencyController {
 
         actionCount &+= 1
         if actionCount >= threshold {
+
+            if let last = lastInterstitialShownAt,
+               Date().timeIntervalSince(last) < minimumInterstitialInterval {
+                actionCount = 0
+                return
+            }
+
             actionCount = 0
+            lastInterstitialShownAt = Date()
+
             InterstitialAdManager.shared.loadIfNeeded()
             InterstitialAdManager.shared.presentIfAvailable()
         }

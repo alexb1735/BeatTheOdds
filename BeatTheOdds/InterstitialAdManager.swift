@@ -69,6 +69,9 @@ final class InterstitialAdManager: NSObject {
         guard let topVC = Self.topViewController() else {
             return
         }
+        if topVC.presentedViewController != nil {
+            return
+        }
 
         // Some SDK versions provide canPresent; if yours supports it, keep this block.
         // If you get a compile error here, tell me your exact error and I’ll adjust to your SDK signature.
@@ -121,6 +124,7 @@ extension InterstitialAdManager: FullScreenContentDelegate {
     }
 
     func ad(_ ad: FullScreenPresentingAd, didFailToPresentFullScreenContentWithError error: Error) {
+        interstitial = nil
         loadIfNeeded()
     }
 
