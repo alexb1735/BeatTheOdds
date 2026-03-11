@@ -132,26 +132,47 @@ final class FriendsManager: ObservableObject {
         guard let myUid = Auth.auth().currentUser?.uid else { return [] }
 
         let friendUIDs = try await fetchFriendUIDs()
-        let allUIDs = [myUid] + friendUIDs
+        let allUIDs = Array(Set([myUid] + friendUIDs))
 
-        return try await withThrowingTaskGroup(of: PublicUserProfile?.self) { group in
-            for uid in allUIDs {
-                group.addTask {
-                    try await self.fetchUserProfile(uid: uid)
-                }
+        guard !allUIDs.isEmpty else { return [] }
+
+        let chunkSize = 10
+        var profiles: [PublicUserProfile] = []
+
+        for chunkStart in stride(from: 0, to: allUIDs.count, by: chunkSize) {
+            let chunkEnd = min(chunkStart + chunkSize, allUIDs.count)
+            let chunk = Array(allUIDs[chunkStart..<chunkEnd])
+
+            let snapshot = try await db.collection("users")
+                .whereField(FieldPath.documentID(), in: chunk)
+                .getDocuments()
+
+            let chunkProfiles: [PublicUserProfile] = snapshot.documents.compactMap { doc in
+                let u = doc.data()
+
+                let username = (u["username"] as? String) ?? ""
+                let displayName = (u["displayName"] as? String) ?? username
+                let title = (u["title"] as? String) ?? ""
+
+                let netWorthAny = u["netWorth"]
+                let netWorth: Double =
+                    (netWorthAny as? Double)
+                    ?? Double(netWorthAny as? Int ?? 0)
+
+                return PublicUserProfile(
+                    id: doc.documentID,
+                    username: username,
+                    displayName: displayName,
+                    netWorth: netWorth,
+                    title: title
+                )
             }
 
-            var profiles: [PublicUserProfile] = []
-
-            for try await profile in group {
-                if let profile {
-                    profiles.append(profile)
-                }
-            }
-
-            profiles.sort { $0.netWorth > $1.netWorth }
-            return profiles
+            profiles.append(contentsOf: chunkProfiles)
         }
+
+        profiles.sort { $0.netWorth > $1.netWorth }
+        return profiles
     }
     
     struct FriendRequest: Identifiable {

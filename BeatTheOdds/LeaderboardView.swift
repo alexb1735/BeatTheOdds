@@ -164,13 +164,13 @@ struct LeaderboardView: View {
         }
     }
     private func titleColor(_ title: String) -> Color {
-        switch title {
-        case "Tycoon": return .purple
-        case "Millionaire": return .yellow
-        case "High Roller": return .orange
-        case "Investor": return .blue
-        default: return .secondary
-        }
+        if title.contains("Tycoon") { return .purple }
+        if title.contains("Millionaire") { return .yellow }
+        if title.contains("High Roller") { return .orange }
+        if title.contains("Mid level") { return .pink }
+        if title.contains("Rookie") { return .blue }
+        if title.contains("Chud") { return .gray }
+        return .secondary
     }
 }
 

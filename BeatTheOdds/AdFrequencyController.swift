@@ -8,7 +8,7 @@ final class AdFrequencyController {
     static let shared = AdFrequencyController()
 
     /// Show an interstitial every `threshold` actions.
-    private let threshold: Int = 12
+    private let threshold: Int = 6
 
     /// Counts user actions since the last interstitial.
     private var actionCount: Int = 0
@@ -18,12 +18,15 @@ final class AdFrequencyController {
     /// Call this from each action button press.
     /// When the count reaches the threshold, attempt to present an interstitial and reset the counter.
     func registerActionAndMaybeShowAd() {
+        if UserDefaults.standard.bool(forKey: "isPremiumActive") {
+            return
+        }
+
         guard ConsentInformation.shared.canRequestAds else { return }
 
         actionCount &+= 1
         if actionCount >= threshold {
             actionCount = 0
-            // Ensure an ad is ready or request one, then present if available.
             InterstitialAdManager.shared.loadIfNeeded()
             InterstitialAdManager.shared.presentIfAvailable()
         }

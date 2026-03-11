@@ -17,6 +17,7 @@ struct BeatTheOddsApp: App {
     @StateObject private var auth = AuthManager()
     @StateObject private var economy = EconomyStore()
     @StateObject private var upgrades = UpgradesStore()
+    @StateObject private var premium = PremiumStore()
 
     @Environment(\.scenePhase) private var scenePhase
 
@@ -34,6 +35,7 @@ struct BeatTheOddsApp: App {
                 .environmentObject(auth)
                 .environmentObject(economy)
                 .environmentObject(upgrades)
+                .environmentObject(premium)
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
@@ -49,6 +51,7 @@ private struct RootView: View {
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var economy: EconomyStore
     @EnvironmentObject var upgrades: UpgradesStore
+    @EnvironmentObject var premium: PremiumStore
 
     var body: some View {
         Group {
@@ -57,6 +60,9 @@ private struct RootView: View {
                     .onAppear {
                         economy.start()
                         upgrades.start()
+                        Task {
+                            await premium.start()
+                        }
 
                         
                     }

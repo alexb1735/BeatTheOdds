@@ -60,6 +60,9 @@ final class InterstitialAdManager: NSObject {
         
         guard let ad = interstitial else {
             loadIfNeeded()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.presentIfAvailable()
+            }
             return
         }
 
@@ -113,7 +116,7 @@ extension InterstitialAdManager: FullScreenContentDelegate {
     }
 
     func adDidDismissFullScreenContent(_ ad: FullScreenPresentingAd) {
-        // Preload next for the next transition point
+        interstitial = nil
         loadIfNeeded()
     }
 

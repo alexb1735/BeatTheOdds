@@ -13,6 +13,7 @@
 		293905882F54902F003F92BA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 293905872F54902F003F92BA /* FirebaseAuth */; };
 		2939058A2F549037003F92BA /* FirebaseFirestore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905892F549037003F92BA /* FirebaseFirestore */; };
 		29AA37642F5F103B007BB117 /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29AA37632F5F1037007BB117 /* Formatters.swift */; };
+		29AA37662F5F4230007BB117 /* PremiumStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29AA37652F5F422A007BB117 /* PremiumStore.swift */; };
 		29ECEC3E2F5D9FF400D9FDF2 /* PrivacyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC342F5D9FF400D9FDF2 /* PrivacyView.swift */; };
 		29ECEC3F2F5D9FF400D9FDF2 /* UserStateStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC3A2F5D9FF400D9FDF2 /* UserStateStore.swift */; };
 		29ECEC402F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 29ECEC1E2F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift */; };
@@ -51,6 +52,7 @@
 /* Begin PBXFileReference section */
 		2900580B2F00685400FBA5EF /* BeatTheOdds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeatTheOdds.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		29AA37632F5F1037007BB117 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		29AA37652F5F422A007BB117 /* PremiumStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumStore.swift; sourceTree = "<group>"; };
 		29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ad.swift; sourceTree = "<group>"; };
 		29ECEC1B2F5D9FF400D9FDF2 /* AddFriendsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFriendsView.swift; sourceTree = "<group>"; };
 		29ECEC1C2F5D9FF400D9FDF2 /* AdFrequencyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdFrequencyController.swift; sourceTree = "<group>"; };
@@ -134,6 +136,7 @@
 				29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */,
 				29ECEC1B2F5D9FF400D9FDF2 /* AddFriendsView.swift */,
 				29AA37632F5F1037007BB117 /* Formatters.swift */,
+				29AA37652F5F422A007BB117 /* PremiumStore.swift */,
 				29ECEC1C2F5D9FF400D9FDF2 /* AdFrequencyController.swift */,
 				29ECEC1D2F5D9FF400D9FDF2 /* AppDelegate.swift */,
 				29ECEC1E2F5D9FF400D9FDF2 /* AppOpenAdManager 2.swift */,
@@ -280,6 +283,7 @@
 				29ECEC4B2F5D9FF400D9FDF2 /* ContentView.swift in Sources */,
 				29ECEC4C2F5D9FF400D9FDF2 /* FriendSearchResultView.swift in Sources */,
 				29ECEC4D2F5D9FF400D9FDF2 /* rewardAd.swift in Sources */,
+				29AA37662F5F4230007BB117 /* PremiumStore.swift in Sources */,
 				29ECEC4E2F5D9FF400D9FDF2 /* AppDelegate.swift in Sources */,
 				29ECEC4F2F5D9FF400D9FDF2 /* FriendsManager.swift in Sources */,
 				29ECEC502F5D9FF400D9FDF2 /* AdFrequencyController.swift in Sources */,
@@ -418,7 +422,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeatTheOdds/BeatTheOdds.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = J9ZQL7929D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -432,7 +436,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.AlexBradshaw.BeatTheOdds;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -452,7 +456,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = BeatTheOdds/BeatTheOdds.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 3;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = J9ZQL7929D;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -466,7 +470,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.0.1;
 				MTL_ENABLE_DEBUG_INFO = "DWARF with dSYM File";
 				PRODUCT_BUNDLE_IDENTIFIER = com.AlexBradshaw.BeatTheOdds;
 				PRODUCT_NAME = "$(TARGET_NAME)";

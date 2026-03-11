@@ -24,10 +24,12 @@ final class AppOpenAdManager: NSObject {
   }
   
   /// Call this at app launch (e.g., in App/Scene initialization) to preload and try to present as early as possible.
-  public func start() {
-    loadIfNeeded()
-  }
-  
+    public func start() {
+        if UserDefaults.standard.bool(forKey: "isPremiumActive") {
+            return
+        }
+        loadIfNeeded()
+    }
   @objc private func appWillEnterForeground() {
     // Reset state on new foreground session and try once
     hasShownAdThisForeground = false
@@ -45,7 +47,9 @@ final class AppOpenAdManager: NSObject {
   
   /// Loads an App Open Ad if one isn't already loaded or loading.
   public func loadIfNeeded() {
-      
+      if UserDefaults.standard.bool(forKey: "isPremiumActive") {
+          return
+      }
       guard ConsentInformation.shared.canRequestAds else {
           print("AppOpen: cannot request ads yet (consent not ready)")
           return
@@ -91,7 +95,9 @@ final class AppOpenAdManager: NSObject {
   /// Attempts to present the ad if available and not currently showing.
   /// If not available, triggers a load.
   public func tryToPresentAd() {
-      
+      if UserDefaults.standard.bool(forKey: "isPremiumActive") {
+          return
+      }
       guard ConsentInformation.shared.canRequestAds else {
           print("AppOpen: cannot present yet (consent not ready)")
           return

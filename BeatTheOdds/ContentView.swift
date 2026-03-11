@@ -88,6 +88,7 @@ private struct SettingsSheetHost: View {
     @Binding var section: ContentView.SettingsSection
     @EnvironmentObject var auth: AuthManager
     @EnvironmentObject var economy: EconomyStore
+    
     // The parent passes a closure that renders settings content using the parent's state.
     let contentBuilder: () -> AnyView
     var body: some View {
@@ -270,6 +271,8 @@ struct ContentView: View {
         }
     }
     
+    
+    
     @State private var activeSheet: ActiveSheet? = nil
     
     @State private var uiCoins: Double = 0
@@ -280,8 +283,14 @@ struct ContentView: View {
     
     @EnvironmentObject var economy: EconomyStore
     
+    @EnvironmentObject var premium: PremiumStore
+    
     // Added environment object for upgrades store
     @EnvironmentObject var upgrades: UpgradesStore
+    
+    private var minimumAllowedMultiplier: Double {   // ✅ inside struct
+            premium.isPremiumActive ? 1.2 : 1.0
+        }
     
     private var uid: String {
         Auth.auth().currentUser?.uid ?? "guest"
@@ -310,6 +319,8 @@ struct ContentView: View {
         economy.coins + economy.money
     }
     
+    
+    @State private var lastLeaderboardUpdate: Date = .distantPast
     @State private var showingOfflineIncomePopup = false
     @State private var offlineIncomeAmount: Double = 0
     
@@ -505,14 +516,7 @@ struct ContentView: View {
               "1s =", hasIncomePer1s,
               "=> coinsPerSecond =", coinsPerSecond)
 
-        guard let uid = Auth.auth().currentUser?.uid else { return }
-
-        Task {
-            try? await Firestore.firestore().collection("users").document(uid).updateData([
-                "coinsPerSecond": rate,
-                "updatedAt": FieldValue.serverTimestamp()
-            ])
-        }
+        
     }
     
     
@@ -667,8 +671,15 @@ struct ContentView: View {
         
         // Increment multiplier AFTER applying this win so the next consecutive win uses +0.1 multiplier
         currentStreak += 0.1
-        streakMultiplier = max(1.0, currentStreak)
+        streakMultiplier = max(minimumAllowedMultiplier, currentStreak)
         lastTotals = (economy.coins, economy.money)
+        
+        Task {
+            try? await Task.sleep(nanoseconds: 1_700_000_000)
+            await saveUserEconomyToFirestore()
+        }
+
+        
     }
     
     private func applyLoss(to binding: Binding<Double>, lossAmount: Double, isCoins: Bool) {
@@ -695,11 +706,17 @@ struct ContentView: View {
             // Consume protection: keep current multiplier, then clear protection
             isStreakProtected = false
         } else {
-            currentStreak = 1.0
-            streakMultiplier = 1.0
+            currentStreak = minimumAllowedMultiplier
+            streakMultiplier = minimumAllowedMultiplier
             hasUsedProtectionForCurrentStreak = false
         }
         lastTotals = (economy.coins, economy.money)
+        
+        Task {
+            try? await Task.sleep(nanoseconds: 1_700_000_000)
+            await saveUserEconomyToFirestore()
+        }
+        
     }
     
     private func animateValue(value: Binding<Double>, to target: Double, isCoins: Bool) {
@@ -752,6 +769,9 @@ struct ContentView: View {
                     isAnimatingValue = false
                 }
             }
+            
+            
+            
         }
     }
     
@@ -917,18 +937,58 @@ struct ContentView: View {
         if hasIncomePer1s { coinsPerSecond += 1.0 }
     }
     
-    private func updateUserEconomyToFirestore() async {
+    private func updateLeaderboardProfileInFirestore() async {
+
+        // Prevent updates more often than every 15 seconds
+        if Date().timeIntervalSince(lastLeaderboardUpdate) < 15 {
+            return
+        }
+
+        lastLeaderboardUpdate = Date()
+
+        let currentNetWorth = economy.coins + economy.money
+
         let uid = auth.user?.uid ?? Auth.auth().currentUser?.uid
         guard let uid else { return }
+
         let doc = Firestore.firestore().collection("users").document(uid)
+
         let data: [String: Any] = [
+            "username": storedUsername ?? "",
+            "displayName": storedDisplayName ?? auth.user?.displayName ?? "Player",
+            "netWorth": currentNetWorth,
+            "title": playerTitle(),
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+
+        do {
+            try await doc.setData(data, merge: true)
+        } catch {
+            print("Leaderboard profile update error:", error)
+        }
+    }
+    
+    private func saveUserEconomyToFirestore() async {
+        let uid = auth.user?.uid ?? Auth.auth().currentUser?.uid
+        guard let uid else { return }
+
+        let doc = Firestore.firestore().collection("users").document(uid)
+
+        let data: [String: Any] = [
+            "username": storedUsername ?? "",
+            "displayName": storedDisplayName ?? auth.user?.displayName ?? "Player",
             "coins": economy.coins,
             "money": economy.money,
             "netWorth": economy.coins + economy.money,
             "title": playerTitle(),
             "updatedAt": FieldValue.serverTimestamp()
         ]
-        do { try await doc.setData(data, merge: true) } catch { }
+
+        do {
+            try await doc.setData(data, merge: true)
+        } catch {
+            print("Economy save error:", error)
+        }
     }
     
     // Popup mode for choosing between adding to coins or withdrawing from coins to cash
@@ -1010,9 +1070,13 @@ struct ContentView: View {
     }
     
     var bottomBanner: some View {
-        BannerAdView(adUnitID: "ca-app-pub-3940256099942544/2435281174")
-            .frame(width: 320, height: 50)
-            .padding(.bottom, 12)
+        Group {
+            if !premium.isPremiumActive {
+                BannerAdView(adUnitID: "ca-app-pub-3940256099942544/2435281174")
+                    .frame(width: 320, height: 50)
+                    .padding(.bottom, 12)
+            }
+        }
     }
     
     var topAdButtonRow: some View {
@@ -1082,7 +1146,7 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        showingHighRiskConfirm = true; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        showingHighRiskConfirm = true
                     } label: {
                         HStack {
                             Image(systemName: "chart.xyaxis.line")
@@ -1101,7 +1165,7 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        showingLotteryConfirm = true; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        showingLotteryConfirm = true
                     } label: {
                         HStack {
                             Image(systemName: "shield.lefthalf.fill")
@@ -1121,7 +1185,7 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        showingHighRollerConfirm = true; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        showingHighRollerConfirm = true
                     } label: {
                         HStack {
                             Image(systemName: "banknote.fill")
@@ -1144,7 +1208,7 @@ struct ContentView: View {
             VStack(spacing: 16) {
                 VStack {
                     Button {
-                        showingSuperHighRollerConfirm = true; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        showingSuperHighRollerConfirm = true
                     } label: {
                         HStack {
                             Image(systemName: "medal.star")
@@ -1164,7 +1228,7 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        showingDollarForTwoConfirm = true; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        showingDollarForTwoConfirm = true
                     } label: {
                         HStack {
                             Image(systemName: "dollarsign.circle.fill")
@@ -1184,7 +1248,19 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        activeSheet = .roulette; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        guard !showingAmountPopup,
+                              !showingProtectionConfirm,
+                              !showingHighRiskConfirm,
+                              !showingLotteryConfirm,
+                              !showingHighRollerConfirm,
+                              !showingSuperHighRollerConfirm,
+                              !showingDollarForTwoConfirm,
+                              !showingOfflineIncomePopup,
+                              !showingMilestonePopup,
+                              activeSheet == nil
+                        else { return }
+
+                        activeSheet = .roulette
                     } label: {
                         HStack {
                             Image(systemName: "multiply.circle.fill")
@@ -1203,7 +1279,19 @@ struct ContentView: View {
                 
                 VStack {
                     Button {
-                        activeSheet = .roulette2; AdFrequencyController.shared.registerActionAndMaybeShowAd()
+                        guard !showingAmountPopup,
+                              !showingProtectionConfirm,
+                              !showingHighRiskConfirm,
+                              !showingLotteryConfirm,
+                              !showingHighRollerConfirm,
+                              !showingSuperHighRollerConfirm,
+                              !showingDollarForTwoConfirm,
+                              !showingOfflineIncomePopup,
+                              !showingMilestonePopup,
+                              activeSheet == nil
+                        else { return }
+
+                        activeSheet = .roulette2
                     } label: {
                         HStack {
                             Image(systemName: "number.circle.fill")
@@ -1498,84 +1586,142 @@ struct ContentView: View {
             }
         case .stats:
             ZStack {
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                if premium.isPremiumActive {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .ignoresSafeArea()
 
-                VStack(spacing: 16) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "chart.bar.xaxis").foregroundColor(.green)
-                        Text("Your Performance").font(.title3).bold()
-                    }
-                    Text("Track your progress and aim for new highs.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-
-                    VStack(alignment: .leading, spacing: 8) {
-                        let winRateString = gamesPlayed > 0 ? String(format: "%.1f", Double(gamesWon) * 100.0 / Double(gamesPlayed)) : "0"
-                        HStack { Image(systemName: "crown").foregroundColor(.yellow); Text("Highest net worth: $\(formatNumber(highestNetworth))").font(.subheadline) }
-                        HStack { Image(systemName: "dollarsign.circle").foregroundColor(.blue); Text("Total money made: $\(formatNumber(totalMoneyMade))").font(.subheadline) }
-                        HStack { Image(systemName: "flame").foregroundColor(.red); Text("Longest win streak: \(longestWinStreak)").font(.subheadline) }
-                        HStack { Image(systemName: "snow").foregroundColor(.cyan); Text("Longest loss streak: \(longestLossStreak)").font(.subheadline) }
-                        HStack { Image(systemName: "arrow.up.right").foregroundColor(.green); Text("Largest single gain: $\(formatNumber(largestSingleGain))").font(.subheadline) }
-                        HStack { Image(systemName: "percent").foregroundColor(.orange); Text("Win Rate: \(winRateString)%").font(.subheadline) }
-                        VStack(alignment: .leading, spacing: 2) {
-                            HStack {
-                                Image(systemName: "dollarsign.arrow.trianglehead.counterclockwise.rotate.90")
-                                    .foregroundColor(.orange)
-                                Text("Passive income: $\(String(format: "%.2f", coinsPerSecond))/sec")
-                                    .font(.subheadline)
-                                    .monospacedDigit()
+                        VStack(spacing: 16) {
+                            HStack(spacing: 10) {
+                                Image(systemName: "chart.bar.xaxis").foregroundColor(.green)
+                                Text("Your Performance").font(.title3).bold()
                             }
 
-                            Text("≈ $\(formatNumber(coinsPerSecond * 60))/min • $\(formatNumber(coinsPerSecond * 3600))/hour")
-                                .animation(.easeInOut(duration: 0.25), value: coinsPerSecond)                                .font(.caption2)
+                            Text("Track your progress and aim for new highs.")
+                                .font(.footnote)
                                 .foregroundColor(.secondary)
-                                .monospacedDigit()
+
+                            VStack(alignment: .leading, spacing: 8) {
+                                let winRateString = gamesPlayed > 0
+                                    ? String(format: "%.1f", Double(gamesWon) * 100.0 / Double(gamesPlayed))
+                                    : "0"
+
+                                HStack {
+                                    Image(systemName: "crown").foregroundColor(.yellow)
+                                    Text("Highest net worth: $\(formatNumber(highestNetworth))").font(.subheadline)
+                                }
+
+                                HStack {
+                                    Image(systemName: "dollarsign.circle").foregroundColor(.blue)
+                                    Text("Total money made: $\(formatNumber(totalMoneyMade))").font(.subheadline)
+                                }
+
+                                HStack {
+                                    Image(systemName: "flame").foregroundColor(.red)
+                                    Text("Longest win streak: \(longestWinStreak)").font(.subheadline)
+                                }
+
+                                HStack {
+                                    Image(systemName: "snow").foregroundColor(.cyan)
+                                    Text("Longest loss streak: \(longestLossStreak)").font(.subheadline)
+                                }
+
+                                HStack {
+                                    Image(systemName: "arrow.up.right").foregroundColor(.green)
+                                    Text("Largest single gain: $\(formatNumber(largestSingleGain))").font(.subheadline)
+                                }
+
+                                HStack {
+                                    Image(systemName: "percent").foregroundColor(.orange)
+                                    Text("Win Rate: \(winRateString)%").font(.subheadline)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack {
+                                        Image(systemName: "dollarsign.arrow.trianglehead.counterclockwise.rotate.90")
+                                            .foregroundColor(.orange)
+                                        Text("Passive income: $\(String(format: "%.2f", coinsPerSecond))/sec")
+                                            .font(.subheadline)
+                                            .monospacedDigit()
+                                    }
+
+                                    Text("≈ $\(formatNumber(coinsPerSecond * 60))/min • $\(formatNumber(coinsPerSecond * 3600))/hour")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                        .monospacedDigit()
+                                        .animation(.easeInOut(duration: 0.25), value: coinsPerSecond)
+                                }
+
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Image(systemName: "flag.checkered.2.crossed")
+                                            .foregroundColor(.blue)
+
+                                        Text("Next milestone: $\(formatNumber(currentMilestoneTarget()))")
+                                            .font(.subheadline)
+                                            .fontWeight(.semibold)
+                                    }
+
+                                    ProgressView(value: milestoneProgress)
+                                        .tint(.green)
+
+                                    Text("$\(formatNumber(economy.netWorth)) / $\(formatNumber(currentMilestoneTarget()))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+
+                                    Text(milestoneRewardUnlocked() ? "✓ \(currentMilestoneReward()) unlocked" : currentMilestoneReward())
+                                        .font(.caption)
+                                        .foregroundColor(milestoneRewardUnlocked() ? .green : .secondary)
+
+                                    Text("Current max bet: $\(formatNumber(currentBetLimit()))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+
+                                    Text("Next max bet: $\(formatNumber(nextMilestoneBetLimit()))")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+                                .padding(.top, 6)
+                            }
+                            .padding()
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(12)
                         }
-                        
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack {
-                                Image(systemName: "flag.checkered.2.crossed")
-                                    .foregroundColor(.blue)
+                        .padding()
+                        .background(.ultraThinMaterial)
+                        .cornerRadius(12)
+                    }
+                } else {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .ignoresSafeArea()
 
-                                Text("Next milestone: $\(formatNumber(currentMilestoneTarget()))")
-                                    .font(.subheadline)
-                                    .fontWeight(.semibold)
-                            }
+                        VStack(spacing: 16) {
+                            Image(systemName: "lock.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.yellow)
 
-                            ProgressView(value: milestoneProgress)
-                                .tint(.green)
+                            Text("Stats are part of Premium Pass")
+                                .font(.headline)
 
-                            Text("$\(formatNumber(economy.netWorth)) / $\(formatNumber(currentMilestoneTarget()))")
-                                .font(.caption2)
+                            Text("Upgrade to view your gameplay statistics.")
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
 
-                            Text(milestoneRewardUnlocked() ? "✓ \(currentMilestoneReward()) unlocked" : currentMilestoneReward())
-                                .font(.caption)
-                                .foregroundColor(milestoneRewardUnlocked() ? .green : .secondary)
                             
-                            Text("Current max bet: $\(formatNumber(currentBetLimit()))")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-
-                            Text("Next max bet: $\(formatNumber(nextMilestoneBetLimit()))")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
                         }
-                        .padding(.top, 6)
-                        
+                        .padding()
                     }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
                 }
-                .padding()
-                .background(.ultraThinMaterial)
-                .cornerRadius(12)
             }
         case .upgrades:
             ZStack {
@@ -1656,7 +1802,6 @@ struct ContentView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack { Image(systemName: "nosign.app.fill").foregroundColor(.green); Text("Remove popup ads") }
-                        HStack { Image(systemName: "clock.arrow.circlepath").foregroundColor(.green); Text("Fixed income of $1 every 15 seconds") }
                         HStack { Image(systemName: "multiply.circle.fill").foregroundColor(.green); Text("Permanent base multiplier of 1.2x") }
                         HStack { Image(systemName: "chart.bar.xaxis.ascending").foregroundColor(.green); Text("Add friends and view leaderboard") }
                         HStack { Image(systemName: "chart.line.text.clipboard").foregroundColor(.green); Text("View gameplay stats") }
@@ -1665,12 +1810,60 @@ struct ContentView: View {
                     .background(.ultraThinMaterial)
                     .cornerRadius(12)
 
-                    Button("Subscribe for $1.49/ month") {}
-                        .buttonStyle(.bordered)
-                        .tint(.blue)
+                    if premium.isPremiumActive {
+                        Text("Premium is active on this account")
+                            .font(.caption)
+                            .foregroundColor(.green)
+                    }
+
+                    if premium.isLoading {
+                        ProgressView("Loading Premium...")
+                    }
+
+                    if let error = premium.purchaseError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .multilineTextAlignment(.center)
+                    }
+                    
+                    Text("Loaded products: \(premium.products.count)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    
+                    Button(premium.isPremiumActive ? "Premium Active" : "Subscribe for €0,99 / month") {
+                        Task {
+                            await premium.purchaseMonthlyPass()
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .disabled(premium.isPremiumActive || premium.isLoading)
+                    
+                    Button("Restore Purchases") {
+                        Task {
+                            await premium.restorePurchases()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.gray)
+                    
+                    Button("Manage Subscription") {
+                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
+                            UIApplication.shared.open(url)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.gray)
                 }
                 .padding()
             }
+            .onAppear {
+                Task {
+                    await premium.start()
+                }
+            }
+            
         case .privacy:
             ZStack {
                 LinearGradient(
@@ -1705,74 +1898,109 @@ struct ContentView: View {
             }
         case .friends:
             ZStack {
-                LinearGradient(
-                    colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                if premium.isPremiumActive {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .ignoresSafeArea()
 
-                ZStack {
-                    VStack(spacing: 14) {
-                        HStack(spacing: 10) {
-                            Image(systemName: "person.3.fill").foregroundColor(.green)
-                            Text("Leaderboards").font(.title3).bold()
-                        }
-                        Text("Compete with friends and climb the leaderboard!")
-                            .font(.footnote)
-                            .foregroundColor(.secondary)
-                        
-                        Text("Leaderboard")
-                            .font(.headline)
-                            .foregroundColor(.primary)
-                            .frame(maxWidth: .infinity, alignment: .center)
-                        
-                        Divider().padding(.vertical, 4)
-                        // Leaderboard embedded below the panel
-                        LeaderboardView()
-                            .frame(maxHeight: 320)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                    }
-                    .padding()
-                    .background(.ultraThinMaterial)
-                    .cornerRadius(12)
-                }
-                .overlay(alignment: .topTrailing) {
-                    HStack(spacing: 12) {
-                        Button(action: { showingFriendRequests = true }) {
-                            ZStack(alignment: .topTrailing) {
-                                Image(systemName: "tray.badge.fill")
-                                    .font(.title3)
-                                    .foregroundColor(.blue)
-                                if friendRequestsCount > 0 {
-                                    Text("\(friendRequestsCount)")
-                                        .font(.caption2).bold()
-                                        .foregroundColor(.white)
-                                        .padding(4)
-                                        .background(Circle().fill(Color.red))
-                                        .offset(x: 8, y: -8)
+                        ZStack {
+                            VStack(spacing: 14) {
+                                HStack(spacing: 10) {
+                                    Image(systemName: "person.3.fill").foregroundColor(.green)
+                                    Text("Leaderboards").font(.title3).bold()
                                 }
-                            }
-                        }
-                        .buttonStyle(.plain)
 
-                        Button(action: { showingAddFriend = true }) {
-                            Image(systemName: "person.fill.badge.plus")
-                                .foregroundColor(.blue)
-                                .font(.title3)
+                                Text("Compete with friends and climb the leaderboard!")
+                                    .font(.footnote)
+                                    .foregroundColor(.secondary)
+
+                                Text("Leaderboard")
+                                    .font(.headline)
+                                    .foregroundColor(.primary)
+                                    .frame(maxWidth: .infinity, alignment: .center)
+
+                                Divider().padding(.vertical, 4)
+
+                                LeaderboardView()
+                                    .frame(maxHeight: 320)
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                            }
+                            .padding()
+                            .background(.ultraThinMaterial)
+                            .cornerRadius(12)
                         }
-                        .buttonStyle(.plain)
+                        .overlay(alignment: .topTrailing) {
+                            HStack(spacing: 12) {
+                                Button(action: { showingFriendRequests = true }) {
+                                    ZStack(alignment: .topTrailing) {
+                                        Image(systemName: "tray.badge.fill")
+                                            .font(.title3)
+                                            .foregroundColor(.blue)
+
+                                        if friendRequestsCount > 0 {
+                                            Text("\(friendRequestsCount)")
+                                                .font(.caption2).bold()
+                                                .foregroundColor(.white)
+                                                .padding(4)
+                                                .background(Circle().fill(Color.red))
+                                                .offset(x: 8, y: -8)
+                                        }
+                                    }
+                                }
+                                .buttonStyle(.plain)
+
+                                Button(action: { showingAddFriend = true }) {
+                                    Image(systemName: "person.fill.badge.plus")
+                                        .foregroundColor(.blue)
+                                        .font(.title3)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            .padding(12)
+                        }
                     }
-                    .padding(12)
+                    .sheet(isPresented: $showingAddFriend) {
+                        AddFriendsView()
+                    }
+                    .sheet(isPresented: $showingFriendRequests) {
+                        FriendRequestsView()
+                    }
+
+                } else {
+                    ZStack {
+                        LinearGradient(
+                            colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .ignoresSafeArea()
+
+                        VStack(spacing: 16) {
+                            Image(systemName: "lock.fill")
+                                .font(.largeTitle)
+                                .foregroundColor(.yellow)
+
+                            Text("Leaderboards are part of Premium Pass")
+                                .font(.headline)
+
+                            Text("Upgrade to compete with friends and view rankings.")
+                                .font(.subheadline)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+
+                            Button("Get Premium") {
+                                sheetSection = .premium
+                            }
+                            .buttonStyle(.borderedProminent)
+                        }
+                        .padding()
+                    }
                 }
             }
-            .sheet(isPresented: $showingAddFriend) {
-                AddFriendsView()
-            }
-            .sheet(isPresented: $showingFriendRequests) {
-                FriendRequestsView()
-            }
-            
         }
     }
     
@@ -2048,6 +2276,9 @@ struct ContentView: View {
                                 recomputeStats()
                                 hasIncomePerMinute = true
                                 updateCoinsPerSecond()
+                                Task {
+                                    await updateLeaderboardProfileInFirestore()
+                                }
                                 Task { await upgrades.incrementLevel(for: "u_minute") }
                             } else { showAlert = true }
                         }
@@ -2081,6 +2312,9 @@ struct ContentView: View {
                                 recomputeStats()
                                 hasIncomePer30s = true
                                 updateCoinsPerSecond()
+                                Task {
+                                    await updateLeaderboardProfileInFirestore()
+                                }
                                 Task { await upgrades.incrementLevel(for: "u_30s") }
                             } else { showAlert = true }
                         }
@@ -2114,6 +2348,9 @@ struct ContentView: View {
                                 recomputeStats()
                                 hasIncomePer15s = true
                                 updateCoinsPerSecond()
+                                Task {
+                                    await updateLeaderboardProfileInFirestore()
+                                }
                                 Task { await upgrades.incrementLevel(for: "u_15s") }
                             } else { showAlert = true }
                         }
@@ -2147,6 +2384,9 @@ struct ContentView: View {
                                 recomputeStats()
                                 hasIncomePer1s = true
                                 updateCoinsPerSecond()
+                                Task {
+                                    await updateLeaderboardProfileInFirestore()
+                                }
                                 Task { await upgrades.incrementLevel(for: "u_1s") }
                             } else { showAlert = true }
                         }
@@ -2305,8 +2545,6 @@ struct ContentView: View {
                 return
             }
 
-           
-
             let newCoins = economy.coins + amount
             let newMoney = max(0.0, economy.money - amount)
             animateValue(value: coinsBinding, to: newCoins, isCoins: true)
@@ -2315,16 +2553,21 @@ struct ContentView: View {
             recomputeStats()
             showingAmountPopup = false
 
+            Task {
+                try? await Task.sleep(nanoseconds: 1_700_000_000)
+                await saveUserEconomyToFirestore()
+            }
+
         case .withdraw:
             if amount > economy.coins {
                 showAlert = true
                 return
             }
-            
+
             if economy.money + amount > currentBetLimit() {
-                        showingBetLimitAlert = true
-                        return
-                    }
+                showingBetLimitAlert = true
+                return
+            }
 
             let newCoins = max(0.0, economy.coins - amount)
             let newMoney = economy.money + amount
@@ -2333,6 +2576,11 @@ struct ContentView: View {
             playGoldSackSound()
             recomputeStats()
             showingAmountPopup = false
+
+            Task {
+                try? await Task.sleep(nanoseconds: 1_700_000_000)
+                await saveUserEconomyToFirestore()
+            }
         }
     }
     
@@ -2444,20 +2692,10 @@ struct ContentView: View {
         }
 
         if pendingPassiveIncome >= 10.0 || (incomeSecondCounter % 30 == 0 && pendingPassiveIncome > 0) {
-            let amountToFlush = pendingPassiveIncome
             pendingPassiveIncome = 0
 
-            if amountToFlush > 0 {
-                Task { @MainActor in
-                    await economy.save()
-
-                    if let uid = Auth.auth().currentUser?.uid {
-                        try? await Firestore.firestore().collection("users").document(uid).updateData([
-                            "lastIncomeClaimAt": FieldValue.serverTimestamp(),
-                            "updatedAt": FieldValue.serverTimestamp()
-                        ])
-                    }
-                }
+            Task { @MainActor in
+                await economy.save()
             }
         }
     }
@@ -2538,7 +2776,7 @@ struct ContentView: View {
     }
     
     private func currentMilestoneTarget() -> Double {
-        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let milestones: [Double] = [5_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
         let current = economy.netWorth
 
         for milestone in milestones where current < milestone {
@@ -2549,10 +2787,10 @@ struct ContentView: View {
     }
     
     private func currentUnlockedMilestone() -> Double {
-        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let milestones: [Double] = [5_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
         let current = economy.netWorth
 
-        var unlocked: Double = 10_000
+        var unlocked: Double = 0
         for milestone in milestones where current >= milestone {
             unlocked = milestone
         }
@@ -2560,18 +2798,24 @@ struct ContentView: View {
     }
 
     private func currentBetLimit() -> Double {
-        currentUnlockedMilestone() / 10.0
+        let unlocked = currentUnlockedMilestone()
+
+        if unlocked == 0 {
+            return 500.0
+        }
+
+        return unlocked / 5.0
     }
     
     private func nextMilestoneBetLimit() -> Double {
-        let milestones: [Double] = [10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
+        let milestones: [Double] = [5_000, 10_000, 50_000, 100_000, 250_000, 500_000, 1_000_000, 5_000_000]
         let current = economy.netWorth
 
         for milestone in milestones where current < milestone {
-            return milestone / 10.0
+            return milestone / 5.0
         }
 
-        return milestones.last! / 10.0
+        return milestones.last! / 5.0
     }
     
     
@@ -2579,7 +2823,8 @@ struct ContentView: View {
         let target = currentMilestoneTarget()
 
         switch target {
-        case 10_000: return "Low level chud"
+        case 5_000: return "Chud"
+        case 10_000: return "Low level goon"
         case 50_000: return "Moderate motion"
         case 100_000: return "Serious motion detected!"
         case 250_000: return "Big Bank milestone"
@@ -3389,8 +3634,8 @@ struct ContentView: View {
             .padding(.bottom, -40)
 
         // Erase type to simplify inference before adding many modifiers
-        let allowsTouch = (!isAnimatingValue && !showingAmountPopup)
-        let currentOpacity: Double = isAnimatingValue ? 0.6 : 1.0
+        let allowsTouch = !showingAmountPopup
+        let currentOpacity: Double = isAnimatingValue ? 0.85 : 1.0
         let step1 = withBottomBanner
             .allowsHitTesting(allowsTouch)
             .opacity(currentOpacity)
@@ -3465,12 +3710,7 @@ struct ContentView: View {
             .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("InterstitialAd_ShowNow"))) { _ in
                 AdFrequencyController.shared.registerActionAndMaybeShowAd()
             }
-            .onChange(of: economy.coins) { _, _ in
-                Task { await updateUserEconomyToFirestore() }
-            }
-            .onChange(of: economy.money) { _, _ in
-                Task { await updateUserEconomyToFirestore() }
-            }
+            
             .onChange(of: scenePhase) { oldPhase, newPhase in
                 if newPhase == .active {
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
@@ -3480,8 +3720,9 @@ struct ContentView: View {
                 
                 else {
                     Task { @MainActor in
-                        await economy.resetIncomeTimerIfNeeded()
                         await economy.save()
+                        await saveUserEconomyToFirestore()
+                        await economy.resetIncomeTimerIfNeeded()
                     }
                 }
             }

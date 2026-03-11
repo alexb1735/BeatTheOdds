@@ -107,6 +107,30 @@ final class AuthManager: ObservableObject {
         self.user = result.user
     }
 
+    func signInWithApple(credential: AuthCredential) async throws {
+        authErrorMessage = nil
+        isBusy = true
+        defer { isBusy = false }
+
+        let result = try await Auth.auth().signIn(with: credential)
+        let user = result.user
+
+        self.user = user
+
+        let displayName = user.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackName = displayName?.isEmpty == false ? displayName! : "Player"
+
+        let data: [String: Any] = [
+            "displayName": fallbackName,
+            "updatedAt": FieldValue.serverTimestamp()
+        ]
+
+        try await Firestore.firestore()
+            .collection("users")
+            .document(user.uid)
+            .setData(data, merge: true)
+    }
+    
     func signOut() throws {
         try Auth.auth().signOut()
         self.user = nil
