@@ -41,8 +41,17 @@ final class PremiumStore: ObservableObject {
         defer { isLoading = false }
 
         do {
-            products = try await Product.products(for: Array(productIDs))
+            let fetchedProducts = try await Product.products(for: Array(productIDs))
+            products = fetchedProducts
+
+            print("StoreKit requested IDs:", Array(productIDs))
+            print("StoreKit returned products:", fetchedProducts.map(\.id))
+
+            if fetchedProducts.isEmpty {
+                purchaseError = "No products were returned by StoreKit."
+            }
         } catch {
+            print("StoreKit requestProducts error:", error.localizedDescription)
             purchaseError = error.localizedDescription
         }
     }
@@ -66,7 +75,7 @@ final class PremiumStore: ObservableObject {
         purchaseError = nil
 
         guard let product = products.first(where: { $0.id == "com.alexb1735.beattheodds.premium.monthly" }) else {
-            purchaseError = "Premium product not found."
+            purchaseError = "Premium product is not available yet. Please try again later."
             return
         }
 

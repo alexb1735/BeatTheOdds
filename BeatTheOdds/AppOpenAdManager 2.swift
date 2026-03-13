@@ -7,7 +7,11 @@ final class AppOpenAdManager: NSObject {
   
   static let shared = AppOpenAdManager()
   
-  private let adUnitID = "ca-app-pub-3940256099942544/5575463023"
+#if DEBUG
+private let adUnitID = "ca-app-pub-3940256099942544/5575463023"
+#else
+private let adUnitID = "ca-app-pub-9041707305654469/1313227723"
+#endif
   
   private var appOpenAd: AppOpenAd?
   private var isLoading: Bool = false

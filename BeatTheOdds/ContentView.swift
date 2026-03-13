@@ -1173,7 +1173,15 @@ struct ContentView: View {
     var bottomBanner: some View {
         Group {
             if !premium.isPremiumActive {
-                BannerAdView(adUnitID: "ca-app-pub-3940256099942544/2435281174")
+                BannerAdView(
+                    adUnitID: {
+                        #if DEBUG
+                        return "ca-app-pub-3940256099942544/2435281174"
+                        #else
+                        return "ca-app-pub-9041707305654469/1334031800"
+                        #endif
+                    }()
+                )
                     .frame(width: 320, height: 50)
                     .padding(.bottom, 12)
             }

@@ -15,7 +15,11 @@ final class InterstitialAdManager: NSObject {
     static let shared = InterstitialAdManager()
 
     // Use test ID while developing. Replace with your real Interstitial ad unit ID before release.
-    private let adUnitID = "ca-app-pub-3940256099942544/4411468910"
+#if DEBUG
+private let adUnitID = "ca-app-pub-3940256099942544/4411468910"
+#else
+private let adUnitID = "ca-app-pub-9041707305654469/4749272799"
+#endif
 
     private var interstitial: InterstitialAd?
     private var isLoading = false
