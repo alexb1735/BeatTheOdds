@@ -532,6 +532,12 @@ struct ContentView: View {
     // MARK: - Persistence keys
     private enum PersistKey {
         
+        static func adCooldownEndDate(_ uid: String) -> String { "cv.\(uid).adCooldownEndDate" }
+        
+        static func hundredDollarRewardEndDate(_ uid: String) -> String { "cv.\(uid).hundredDollarRewardEndDate" }
+        
+        static func earningsBoostEndDate(_ uid: String) -> String { "cv.\(uid).earningsBoostEndDate" }
+        
         static func dailyRewardNextClaimDate(_ uid: String) -> String { "cv.\(uid).dailyRewardNextClaimDate" }
         
         static func earningsBoostMultiplier(_ uid: String) -> String { "cv.\(uid).earningsBoostMultiplier" }
@@ -628,6 +634,21 @@ struct ContentView: View {
     
     private func loadPersistedState() {
         let d = UserDefaults.standard
+        
+        if d.object(forKey: PersistKey.adCooldownEndDate(uid)) != nil {
+            let storedTime = d.double(forKey: PersistKey.adCooldownEndDate(uid))
+            adCooldownEndDate = storedTime > 0 ? Date(timeIntervalSince1970: storedTime) : nil
+        }
+        
+        if d.object(forKey: PersistKey.hundredDollarRewardEndDate(uid)) != nil {
+            let storedTime = d.double(forKey: PersistKey.hundredDollarRewardEndDate(uid))
+            hundredDollarRewardEndDate = storedTime > 0 ? Date(timeIntervalSince1970: storedTime) : nil
+        }
+        
+        if d.object(forKey: PersistKey.earningsBoostEndDate(uid)) != nil {
+            let storedTime = d.double(forKey: PersistKey.earningsBoostEndDate(uid))
+            earningsBoostEndDate = storedTime > 0 ? Date(timeIntervalSince1970: storedTime) : nil
+        }
 
         if d.object(forKey: PersistKey.currentStreak(uid)) != nil {
             currentStreak = max(1.0, d.double(forKey: PersistKey.currentStreak(uid)))
@@ -733,6 +754,12 @@ struct ContentView: View {
 
     private func persistState() {
         let d = UserDefaults.standard
+        
+        d.set(adCooldownEndDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.adCooldownEndDate(uid))
+        
+        d.set(hundredDollarRewardEndDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.hundredDollarRewardEndDate(uid))
+        
+        d.set(earningsBoostEndDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.earningsBoostEndDate(uid))
 
         d.set(currentStreak, forKey: PersistKey.currentStreak(uid))
         d.set(streakMultiplier, forKey: PersistKey.streakMultiplier(uid))
@@ -2876,6 +2903,7 @@ struct ContentView: View {
             Task { await economy.addCoins(100.0) }
             recomputeStats()
             adCooldownRemaining = 600
+            adCooldownEndDate = Date().addingTimeInterval(600)
             isRewardAdReady = false
             NotificationCenter.default.post(name: NSNotification.Name("RewardedAd_Load"), object: nil)
             resumeBackgroundMusic()
@@ -3050,10 +3078,15 @@ struct ContentView: View {
     
     private func onTick(_ : Date) {
         
-        if adCooldownRemaining > 0 {
-            adCooldownRemaining = max(0, adCooldownRemaining - 1)
+        if let endDate = adCooldownEndDate {
+            let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
+            adCooldownRemaining = remaining
+
+            if remaining <= 0 {
+                adCooldownRemaining = 0
+                adCooldownEndDate = nil
+            }
         }
-        
         if let endDate = earningsBoostEndDate {
             let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
 
@@ -3066,11 +3099,18 @@ struct ContentView: View {
             }
         }
 
-        if timeRemaining > 0 {
-            timeRemaining -= 1
+        if let endDate = hundredDollarRewardEndDate {
+            let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
+            timeRemaining = remaining
+
+            if remaining <= 0 {
+                economy.coins += 100.0
+                pendingPassiveIncome += 100.0
+                hundredDollarRewardEndDate = Date().addingTimeInterval(3 * 60 * 60)
+                timeRemaining = 3 * 60 * 60
+            }
         } else {
-            economy.coins += 100.0
-            pendingPassiveIncome += 100.0
+            hundredDollarRewardEndDate = Date().addingTimeInterval(3 * 60 * 60)
             timeRemaining = 3 * 60 * 60
         }
 
