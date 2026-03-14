@@ -15,11 +15,7 @@ final class RewardedAdManager: NSObject, ObservableObject {
     private var rewardedAd: RewardedAd?
 
     // Test Rewarded Ad Unit ID
-#if DEBUG
-private let adUnitID = "ca-app-pub-3940256099942544/1712485313"
-#else
-private let adUnitID = "ca-app-pub-9041707305654469/7422047562"
-#endif
+    private let adUnitID = "ca-app-pub-3940256099942544/1712485313"
 
     override init() {
         super.init()

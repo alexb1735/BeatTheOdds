@@ -326,9 +326,24 @@ struct ContentView: View {
     @State private var dailyRewardStreak: Int = 0
     @State private var lastDailyRewardClaimDay: String = ""
     
+    private var previewDailyRewardTierIndex: Int {
+        if lastDailyRewardClaimDay == yesterdayKey {
+            return min(dailyRewardStreak + 1, dailyRewardTiers.count - 1)
+        } else {
+            return 0
+        }
+    }
+
+    private var previewDailyRewardDayNumber: Int {
+        previewDailyRewardTierIndex + 1
+    }
+
+    private var previewDailyRewardAmount: Double {
+        dailyRewardTiers[previewDailyRewardTierIndex]
+    }
+    
     var canClaimDailyReward: Bool {
-        let last = Date(timeIntervalSince1970: lastDailyRewardClaimDate)
-        return Date().timeIntervalSince(last) >= 86400
+        Date() >= resolvedDailyRewardNextClaimDate
     }
     
     private var todayKey: String {
@@ -359,6 +374,13 @@ struct ContentView: View {
         [250, 500, 750, 1000, 1500, 2500, 5000]
     }
     
+    private var resolvedDailyRewardNextClaimDate: Date {
+        if let stored = dailyRewardNextClaimDate {
+            return stored
+        }
+        return Date(timeIntervalSince1970: lastDailyRewardClaimDate).addingTimeInterval(86400)
+    }
+    
     @State private var lastLeaderboardUpdate: Date = .distantPast
     @State private var showingOfflineIncomePopup = false
     @State private var offlineIncomeAmount: Double = 0
@@ -386,6 +408,11 @@ struct ContentView: View {
     
     @State private var timeRemaining = 3*60*60
     let timer = Timer.publish(every: 1, on: .main, in: .common).autoconnect()
+    
+    @State private var adCooldownEndDate: Date? = nil
+    @State private var earningsBoostEndDate: Date? = nil
+    @State private var hundredDollarRewardEndDate: Date? = nil
+    @State private var dailyRewardNextClaimDate: Date? = nil
     
     @State private var glowDoubleOrNothing = false
     @State private var glowTenX = false
@@ -505,6 +532,8 @@ struct ContentView: View {
     // MARK: - Persistence keys
     private enum PersistKey {
         
+        static func dailyRewardNextClaimDate(_ uid: String) -> String { "cv.\(uid).dailyRewardNextClaimDate" }
+        
         static func earningsBoostMultiplier(_ uid: String) -> String { "cv.\(uid).earningsBoostMultiplier" }
         static func earningsBoostTimeRemaining(_ uid: String) -> String { "cv.\(uid).earningsBoostTimeRemaining" }
         
@@ -544,19 +573,18 @@ struct ContentView: View {
     }
     
     private func claimDailyReward(multiplier: Double) {
-        if lastDailyRewardClaimDay == yesterdayKey {
-            dailyRewardStreak = min(dailyRewardStreak + 1, dailyRewardTiers.count - 1)
-        } else if lastDailyRewardClaimDay != todayKey {
-            dailyRewardStreak = 0
-        }
+        dailyRewardStreak = previewDailyRewardTierIndex
 
-        economy.coins += currentDailyRewardAmount * multiplier
+        economy.coins += previewDailyRewardAmount * multiplier
         recomputeStats()
 
         lastDailyRewardClaimDate = Date().timeIntervalSince1970
+        dailyRewardNextClaimDate = Date().addingTimeInterval(86400)
         lastDailyRewardClaimDay = todayKey
         showingDailyRewardPopup = false
 
+        persistState()
+        
         Task {
             await saveUserEconomyToFirestore()
         }
@@ -592,7 +620,8 @@ struct ContentView: View {
     
     private func activateEarningsBoost() {
         earningsBoostMultiplier = 2.0
-        earningsBoostTimeRemaining = 600 // 10 minutes
+        earningsBoostTimeRemaining = 600
+        earningsBoostEndDate = Date().addingTimeInterval(600)
     }
     
     
@@ -695,6 +724,11 @@ struct ContentView: View {
         }
 
         lastDailyRewardClaimDay = d.string(forKey: PersistKey.lastDailyRewardClaimDay(uid)) ?? ""
+        
+        if d.object(forKey: PersistKey.dailyRewardNextClaimDate(uid)) != nil {
+            let storedTime = d.double(forKey: PersistKey.dailyRewardNextClaimDate(uid))
+            dailyRewardNextClaimDate = Date(timeIntervalSince1970: storedTime)
+        }
     }
 
     private func persistState() {
@@ -734,6 +768,7 @@ struct ContentView: View {
         
         d.set(lastDailyRewardClaimDate, forKey: PersistKey.lastDailyRewardClaimDate(uid))
         d.set(dailyRewardStreak, forKey: PersistKey.dailyRewardStreak(uid))
+        d.set(dailyRewardNextClaimDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.dailyRewardNextClaimDate(uid))
         d.set(lastDailyRewardClaimDay, forKey: PersistKey.lastDailyRewardClaimDay(uid))
     }
 
@@ -1173,14 +1208,9 @@ struct ContentView: View {
     var bottomBanner: some View {
         Group {
             if !premium.isPremiumActive {
+                // BETA: using Google test banner so TestFlight always shows ads
                 BannerAdView(
-                    adUnitID: {
-                        #if DEBUG
-                        return "ca-app-pub-3940256099942544/2435281174"
-                        #else
-                        return "ca-app-pub-9041707305654469/1334031800"
-                        #endif
-                    }()
+                    adUnitID: "ca-app-pub-3940256099942544/2435281174"
                 )
                     .frame(width: 320, height: 50)
                     .padding(.bottom, 12)
@@ -1866,6 +1896,11 @@ struct ContentView: View {
                                 .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
+                            
+                            Button("Get Premium") {
+                                sheetSection = .premium
+                            }
+                            .buttonStyle(.borderedProminent)
 
                             
                         }
@@ -2256,15 +2291,18 @@ struct ContentView: View {
                     .multilineTextAlignment(.center)
                     .foregroundColor(.primary)
                 
-                Text("Day \(max(dailyRewardStreak, 0) + 1) reward")
+                Text("Day \(previewDailyRewardDayNumber) reward")
                     .font(.headline)
                     .foregroundColor(.secondary)
                 
                 VStack(spacing: 8) {
                     ForEach(Array(dailyRewardTiers.enumerated()), id: \.offset) { index, amount in
                         let dayNumber = index + 1
-                        let isCurrentDay = dayNumber == min(dailyRewardStreak + 1, dailyRewardTiers.count)
-                        let isClaimed = dayNumber <= dailyRewardStreak
+                        let claimedDayCount = lastDailyRewardClaimDay == todayKey
+                            ? min(dailyRewardStreak + 1, dailyRewardTiers.count)
+                            : 0
+                        let isCurrentDay = dayNumber == previewDailyRewardDayNumber
+                        let isClaimed = dayNumber <= claimedDayCount && !isCurrentDay
                         
                         HStack {
                             Text("Day \(dayNumber)")
@@ -2297,7 +2335,7 @@ struct ContentView: View {
                 }
                 .padding(.vertical, 4)
                 
-                Text("+$\(formatNumber(currentDailyRewardAmount))")
+                Text("+$\(formatNumber(previewDailyRewardAmount))")
                     .font(.title)
                     .foregroundColor(.green)
                 
@@ -2959,6 +2997,11 @@ struct ContentView: View {
             dailyRewardStreak = 0
         }
         
+        // Reset streak if user missed a day
+        if lastDailyRewardClaimDay != yesterdayKey && lastDailyRewardClaimDay != todayKey {
+            dailyRewardStreak = 0
+        }
+        
         if canClaimDailyReward && !showingOfflineIncomePopup && !showingMilestonePopup {
             showingDailyRewardPopup = true
         }
@@ -3011,12 +3054,15 @@ struct ContentView: View {
             adCooldownRemaining = max(0, adCooldownRemaining - 1)
         }
         
-        if earningsBoostTimeRemaining > 0 {
-            earningsBoostTimeRemaining -= 1
+        if let endDate = earningsBoostEndDate {
+            let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
 
-            if earningsBoostTimeRemaining <= 0 {
+            earningsBoostTimeRemaining = remaining
+
+            if remaining <= 0 {
                 earningsBoostTimeRemaining = 0
                 earningsBoostMultiplier = 1.0
+                earningsBoostEndDate = nil
             }
         }
 
