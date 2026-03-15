@@ -213,6 +213,7 @@ struct SectionRow: View {
 
 struct TimerBadge: View {
     @Binding var timeRemaining: Int
+    let uiTick: Int
     @EnvironmentObject var economy: EconomyStore
     var reward: Double = 100.0
     @State private var flash = false
@@ -224,6 +225,7 @@ struct TimerBadge: View {
                 .foregroundColor(.blue)
             
             Text(formatTime(timeRemaining))
+                .id(uiTick)
                 .font(.caption)
                 .monospacedDigit()
                 .foregroundColor(.green)
@@ -319,6 +321,8 @@ struct ContentView: View {
         economy.coins + economy.money
     }
     
+    @State private var displayedMoney: Double = 0
+    @State private var displayedCoins: Double = 0
     
     @State private var showingDailyRewardPopup = false
     @State private var dailyRewardAmount: Double = 250
@@ -380,6 +384,8 @@ struct ContentView: View {
         }
         return Date(timeIntervalSince1970: lastDailyRewardClaimDate).addingTimeInterval(86400)
     }
+    
+    @State private var uiTick: Int = 0
     
     @State private var lastLeaderboardUpdate: Date = .distantPast
     @State private var showingOfflineIncomePopup = false
@@ -750,6 +756,40 @@ struct ContentView: View {
             let storedTime = d.double(forKey: PersistKey.dailyRewardNextClaimDate(uid))
             dailyRewardNextClaimDate = Date(timeIntervalSince1970: storedTime)
         }
+        
+        displayedCoins = economy.coins
+        displayedMoney = economy.money
+    }
+    
+    private func animateDisplayedValue(
+        value: Binding<Double>,
+        to target: Double,
+        duration: Double = 1.5
+    ) {
+        let start = value.wrappedValue
+        let delta = target - start
+        guard delta != 0 else { return }
+
+        let fps: Double = 60
+        let steps = Int(duration * fps)
+        var frame = 0
+
+        let timer = Timer(timeInterval: 1.0 / fps, repeats: true) { timer in
+            frame += 1
+
+            let t = Double(frame) / Double(steps)
+            let eased = 1 - pow(1 - t, 3)
+
+            let current = start + delta * eased
+            value.wrappedValue = (current * 100).rounded() / 100
+
+            if frame >= steps {
+                timer.invalidate()
+                value.wrappedValue = (target * 100).rounded() / 100
+            }
+        }
+
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func persistState() {
@@ -886,15 +926,11 @@ struct ContentView: View {
         let start = value.wrappedValue
         let delta = target - start
         guard delta != 0 else { return }
-        
+
         isAnimatingValue = true
-        
-        let totalDuration: Double = 1.5
-        let fps: Double = 60
-        let steps = Int(totalDuration * fps)
-        
+
         let increasing = delta > 0
-        
+
         if isCoins {
             isAnimatingCoinsIncrease = increasing
             isAnimatingCoinsDecrease = !increasing
@@ -902,39 +938,23 @@ struct ContentView: View {
             isAnimatingMoneyIncrease = increasing
             isAnimatingMoneyDecrease = !increasing
         }
-        
-        var frame = 0
-        
-        Timer.scheduledTimer(withTimeInterval: 1.0 / fps, repeats: true) { timer in
-            frame += 1
-            
-            // Ease-out curve (sleek feel)
-            let t = Double(frame) / Double(steps)
-            let eased = 1 - pow(1 - t, 3)
-            
-            let current = start + delta * eased
-            value.wrappedValue = (current * 100).rounded() / 100
-            
-            if frame >= steps {
-                timer.invalidate()
-                value.wrappedValue = (target * 100).rounded() / 100
-                
-                recomputeStats()
-                
-                isAnimatingValue = false
-                
-                if isCoins {
-                    isAnimatingCoinsIncrease = false
-                    isAnimatingCoinsDecrease = false
-                } else {
-                    isAnimatingMoneyIncrease = false
-                    isAnimatingMoneyDecrease = false
-                    isAnimatingValue = false
-                }
+
+        withAnimation(.easeOut(duration: 1.5)) {
+            value.wrappedValue = (target * 100).rounded() / 100
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            recomputeStats()
+
+            if isCoins {
+                isAnimatingCoinsIncrease = false
+                isAnimatingCoinsDecrease = false
+            } else {
+                isAnimatingMoneyIncrease = false
+                isAnimatingMoneyDecrease = false
             }
-            
-            
-            
+
+            isAnimatingValue = false
         }
     }
     
@@ -1487,7 +1507,9 @@ struct ContentView: View {
                     Text("Bank:")
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
-                    Text("$\(formatNumber(economy.coins))")
+                    Text("$\(formatNumber(displayedCoins))")
+                        .contentTransition(.numericText())
+                        .animation(.easeOut(duration: 1.5), value: economy.coins)
                         .monospacedDigit()
                         .frame(minWidth: 0, alignment: .leading)
                         .fontWeight(.bold)
@@ -1501,7 +1523,8 @@ struct ContentView: View {
                     Text("Current Bet:")
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
-                    Text("$\(formatNumber(economy.money))")
+                    Text("$\(formatNumber(displayedMoney))")                        .contentTransition(.numericText())
+                        .animation(.easeOut(duration: 1.5), value: economy.money)
                         .monospacedDigit()
                         .frame(minWidth: 10, alignment: .leading)
                         .font(.subheadline)
@@ -1568,6 +1591,7 @@ struct ContentView: View {
                     .font(.caption2)
                     .foregroundColor(.blue)
                 Text(formatTime(timeRemaining))
+                    .id(uiTick)
                     .font(.caption)
                     .monospacedDigit()
                     .foregroundColor(.green)
@@ -1595,6 +1619,7 @@ struct ContentView: View {
                         .foregroundColor(.yellow)
 
                     Text(formatTime(earningsBoostTimeRemaining))
+                        .id(uiTick)
                         .font(.caption2)
                         .monospacedDigit()
                         .foregroundColor(.primary)
@@ -2667,13 +2692,15 @@ struct ContentView: View {
                         .buttonStyle(PressScaleButtonStyle())
                     Button(hasIncomePerMinute ? "Purchased" : "Pay $40,000") {
                         if !hasIncomePerMinute {
-                            if economy.coins >= 40000.0 {
-                                economy.addCoins(-40000.0)
+                            if economy.coins >= 4000.0 {
+                                economy.coins -= 4000.0
+                                animateDisplayedValue(value: $displayedCoins, to: economy.coins)
                                 recomputeStats()
                                 hasIncomePerMinute = true
                                 updateCoinsPerSecond()
+                                persistState()
                                 Task {
-                                    await updateLeaderboardProfileInFirestore()
+                                    await saveUserEconomyToFirestore()
                                 }
                                 Task { await upgrades.incrementLevel(for: "u_minute") }
                             } else { showAlert = true }
@@ -2704,12 +2731,14 @@ struct ContentView: View {
                     Button(hasIncomePer30s ? "Purchased" : "Pay $70,000") {
                         if !hasIncomePer30s {
                             if economy.coins >= 70000.0 {
-                                economy.addCoins(-70000.0)
+                                economy.coins -= 70000.0
+                                animateDisplayedValue(value: $displayedCoins, to: economy.coins)
                                 recomputeStats()
                                 hasIncomePer30s = true
                                 updateCoinsPerSecond()
+                                persistState()
                                 Task {
-                                    await updateLeaderboardProfileInFirestore()
+                                    await saveUserEconomyToFirestore()
                                 }
                                 Task { await upgrades.incrementLevel(for: "u_30s") }
                             } else { showAlert = true }
@@ -2740,12 +2769,17 @@ struct ContentView: View {
                     Button(hasIncomePer15s ? "Purchased" : "Pay $120,000") {
                         if !hasIncomePer15s {
                             if economy.coins >= 120000.0 {
-                                economy.addCoins(-120000.0)
+                                print("Before purchase coins:", economy.coins)
+
+                                economy.coins -= 120000.0
+                                print("After purchase coins:", economy.coins)
+                                animateDisplayedValue(value: $displayedCoins, to: economy.coins)
                                 recomputeStats()
                                 hasIncomePer15s = true
                                 updateCoinsPerSecond()
+                                persistState()
                                 Task {
-                                    await updateLeaderboardProfileInFirestore()
+                                    await saveUserEconomyToFirestore()
                                 }
                                 Task { await upgrades.incrementLevel(for: "u_15s") }
                             } else { showAlert = true }
@@ -2776,12 +2810,14 @@ struct ContentView: View {
                     Button(hasIncomePer1s ? "Purchased" : "Pay $1,000,000") {
                         if !hasIncomePer1s {
                             if economy.coins >= 1000000.0 {
-                                economy.addCoins(-1000000.0)
+                                economy.coins -= 1000000.0
+                                animateDisplayedValue(value: $displayedCoins, to: economy.coins)
                                 recomputeStats()
                                 hasIncomePer1s = true
                                 updateCoinsPerSecond()
+                                persistState()
                                 Task {
-                                    await updateLeaderboardProfileInFirestore()
+                                    await saveUserEconomyToFirestore()
                                 }
                                 Task { await upgrades.incrementLevel(for: "u_1s") }
                             } else { showAlert = true }
@@ -3078,6 +3114,8 @@ struct ContentView: View {
     
     private func onTick(_ : Date) {
         
+        uiTick += 1
+        
         if let endDate = adCooldownEndDate {
             let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
             adCooldownRemaining = remaining
@@ -3091,6 +3129,7 @@ struct ContentView: View {
             let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
 
             earningsBoostTimeRemaining = remaining
+            print("Boost remaining:", earningsBoostTimeRemaining)
 
             if remaining <= 0 {
                 earningsBoostTimeRemaining = 0
@@ -4169,7 +4208,15 @@ struct ContentView: View {
                 updateBetLimitMultiplier()
                 checkForMilestoneUnlock()
             }
-        
+
+            .onChange(of: economy.money) { _, newValue in
+                animateDisplayedValue(value: $displayedMoney, to: newValue)
+            }
+
+            .onChange(of: economy.coins) { _, newValue in
+                animateDisplayedValue(value: $displayedCoins, to: newValue)
+            }
+
             .onChange(of: hasIncomePerMinute) { _, _ in
                 updateCoinsPerSecond()
             }
