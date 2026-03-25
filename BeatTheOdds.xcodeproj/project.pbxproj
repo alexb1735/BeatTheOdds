@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		2900581B2F0068DD00FBA5EF /* GoogleMobileAds in Frameworks */ = {isa = PBXBuildFile; productRef = 2900581A2F0068DD00FBA5EF /* GoogleMobileAds */; };
+		290AC9E32F7483F400173963 /* StatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 290AC9E22F7483F400173963 /* StatsView.swift */; };
 		29164F4A2F4F307100D57A44 /* GoogleUserMessagingPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 29164F492F4F307100D57A44 /* GoogleUserMessagingPlatform */; };
 		293905862F549029003F92BA /* FirebaseCore in Frameworks */ = {isa = PBXBuildFile; productRef = 293905852F549029003F92BA /* FirebaseCore */; };
 		293905882F54902F003F92BA /* FirebaseAuth in Frameworks */ = {isa = PBXBuildFile; productRef = 293905872F54902F003F92BA /* FirebaseAuth */; };
@@ -51,6 +52,7 @@
 
 /* Begin PBXFileReference section */
 		2900580B2F00685400FBA5EF /* BeatTheOdds.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = BeatTheOdds.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		290AC9E22F7483F400173963 /* StatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatsView.swift; sourceTree = "<group>"; };
 		29AA37632F5F1037007BB117 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
 		29AA37652F5F422A007BB117 /* PremiumStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PremiumStore.swift; sourceTree = "<group>"; };
 		29ECEC1A2F5D9FF400D9FDF2 /* ad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ad.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 				29ECEC3A2F5D9FF400D9FDF2 /* UserStateStore.swift */,
 				29ECEC3B2F5D9FF400D9FDF2 /* Win sound.wav */,
 				29ECEC3C2F5D9FF400D9FDF2 /* WinSound1.mp3 */,
+				290AC9E22F7483F400173963 /* StatsView.swift */,
 			);
 			path = BeatTheOdds;
 			sourceTree = "<group>";
@@ -282,6 +285,7 @@
 				29ECEC4A2F5D9FF400D9FDF2 /* ad.swift in Sources */,
 				29ECEC4B2F5D9FF400D9FDF2 /* ContentView.swift in Sources */,
 				29ECEC4C2F5D9FF400D9FDF2 /* FriendSearchResultView.swift in Sources */,
+				290AC9E32F7483F400173963 /* StatsView.swift in Sources */,
 				29ECEC4D2F5D9FF400D9FDF2 /* rewardAd.swift in Sources */,
 				29AA37662F5F4230007BB117 /* PremiumStore.swift in Sources */,
 				29ECEC4E2F5D9FF400D9FDF2 /* AppDelegate.swift in Sources */,

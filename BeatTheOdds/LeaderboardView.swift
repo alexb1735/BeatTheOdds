@@ -23,6 +23,12 @@ struct LeaderboardView: View {
     @State private var errorText: String?
     @State private var myUID: String = ""
     @State private var mode: LeaderboardMode = .friends
+    
+    @State private var selectedFriendStats: FriendStatsProfile?
+    @State private var isLoadingFriendStats = false
+    
+    @State private var selectedProfile: PublicUserProfile?
+    @State private var showingProfileStats = false
 
     var body: some View {
         NavigationStack {
@@ -126,6 +132,17 @@ struct LeaderboardView: View {
                         .background(isMe ? Color.blue.opacity(0.12) : Color.clear)
                         .cornerRadius(10)
                         .id(p.id)
+                        .onTapGesture {
+                            guard mode == .friends else { return }
+
+                            Task {
+                                isLoadingFriendStats = true
+                                selectedProfile = p
+                                selectedFriendStats = try? await friends.fetchFriendStatsProfile(uid: p.id)
+                                isLoadingFriendStats = false
+                                showingProfileStats = true
+                            }
+                        }
                     }
                     .frame(maxWidth: .infinity)
                 }
@@ -145,6 +162,25 @@ struct LeaderboardView: View {
                     }
                 }
                 .refreshable { await load(forceRefresh: true) }
+            }
+        }
+        .sheet(isPresented: $showingProfileStats) {
+            if isLoadingFriendStats {
+                VStack(spacing: 12) {
+                    ProgressView()
+                    Text("Loading stats...")
+                }
+                .padding()
+            } else if let stats = selectedFriendStats {
+                StatsView(stats: stats)
+            } else {
+                VStack(spacing: 12) {
+                    Text("Could not load stats.")
+                    Button("Close") {
+                        showingProfileStats = false
+                    }
+                }
+                .padding()
             }
         }
     }

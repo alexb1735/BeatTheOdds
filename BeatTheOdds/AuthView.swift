@@ -209,3 +209,75 @@ struct AuthView: View {
         return hashedData.compactMap { String(format: "%02x", $0) }.joined()
     }
 }
+
+
+struct CompleteProfileView: View {
+    @EnvironmentObject var auth: AuthManager
+
+    @State private var username = ""
+    @State private var displayName = ""
+    @State private var errorText: String?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.blue.opacity(0.6), Color.green.opacity(0.5), Color.gray.opacity(0.3)],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
+            .blur(radius: 6)
+
+            VStack(spacing: 18) {
+                Text("Complete Your Profile")
+                    .font(.largeTitle.bold())
+                    .foregroundColor(.white)
+                    .multilineTextAlignment(.center)
+
+                VStack(spacing: 14) {
+                    Text("Choose a username so friends can find you.")
+                        .font(.footnote)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    TextField("Username (unique)", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled(true)
+                        .textFieldStyle(.roundedBorder)
+
+                    TextField("Display name", text: $displayName)
+                        .autocorrectionDisabled(true)
+                        .textFieldStyle(.roundedBorder)
+
+                    if let errorText {
+                        Text(errorText)
+                            .foregroundStyle(.red)
+                            .font(.footnote)
+                    }
+
+                    Button("Save Profile") {
+                        Task {
+                            do {
+                                try await auth.completeAppleProfile(
+                                    username: username,
+                                    displayName: displayName.isEmpty ? username : displayName
+                                )
+                            } catch {
+                                errorText = error.localizedDescription
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .disabled(auth.isBusy || username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(16)
+                .background(.ultraThinMaterial)
+                .cornerRadius(16)
+                .shadow(radius: 10)
+                .frame(maxWidth: 360)
+            }
+            .padding()
+        }
+    }
+}

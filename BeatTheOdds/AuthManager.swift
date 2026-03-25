@@ -19,6 +19,7 @@ final class AuthManager: ObservableObject {
     @Published var user: User? = nil
     @Published var authErrorMessage: String?
     @Published var isBusy: Bool = false
+    @Published var needsProfileSetup: Bool = false
 
     private let db = Firestore.firestore()
 
@@ -26,6 +27,23 @@ final class AuthManager: ObservableObject {
         authStateListenerHandle = Auth.auth().addStateDidChangeListener { _, user in
             self.firebaseUser = user
             self.user = user
+
+            guard let user else {
+                self.needsProfileSetup = false
+                return
+            }
+
+            Task { @MainActor in
+                do {
+                    let snapshot = try await self.db.collection("users").document(user.uid).getDocument()
+                    let username = (snapshot.data()?["username"] as? String)?
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+                    self.needsProfileSetup = (username == nil || username?.isEmpty == true)
+                } catch {
+                    self.needsProfileSetup = false
+                }
+            }
         }
     }
     
@@ -114,21 +132,102 @@ final class AuthManager: ObservableObject {
 
         let result = try await Auth.auth().signIn(with: credential)
         let user = result.user
-
         self.user = user
 
-        let displayName = user.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallbackName = displayName?.isEmpty == false ? displayName! : "Player"
+        let userRef = db.collection("users").document(user.uid)
+        let snapshot = try await userRef.getDocument()
+        let data = snapshot.data()
 
-        let data: [String: Any] = [
-            "displayName": fallbackName,
-            "updatedAt": FieldValue.serverTimestamp()
-        ]
+        let existingUsername = (data?["username"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let existingDisplayName = (data?["displayName"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        try await Firestore.firestore()
-            .collection("users")
-            .document(user.uid)
-            .setData(data, merge: true)
+        let appleDisplayName = user.displayName?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let fallbackDisplayName = (appleDisplayName?.isEmpty == false ? appleDisplayName! : "Player")
+
+        if let existingUsername, !existingUsername.isEmpty {
+            // Existing profile is complete
+            needsProfileSetup = false
+
+            // Keep display name updated if it was missing before
+            if existingDisplayName == nil || existingDisplayName?.isEmpty == true {
+                try await userRef.setData([
+                    "displayName": fallbackDisplayName,
+                    "updatedAt": FieldValue.serverTimestamp()
+                ], merge: true)
+            }
+        } else {
+            // Signed in successfully, but profile is incomplete
+            needsProfileSetup = true
+
+            // Create a minimal placeholder doc so later setup can complete it
+            try await userRef.setData([
+                "displayName": fallbackDisplayName,
+                "updatedAt": FieldValue.serverTimestamp()
+            ], merge: true)
+        }
+    }
+    
+    func completeAppleProfile(username: String, displayName: String) async throws {
+        authErrorMessage = nil
+        isBusy = true
+        defer { isBusy = false }
+
+        guard let user = Auth.auth().currentUser else {
+            throw NSError(
+                domain: "AuthManager",
+                code: 401,
+                userInfo: [NSLocalizedDescriptionKey: "No signed-in user found."]
+            )
+        }
+
+        let uid = user.uid
+        let normalized = username.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let cleanedDisplayName = displayName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if normalized.isEmpty {
+            throw NSError(
+                domain: "AuthManager",
+                code: 400,
+                userInfo: [NSLocalizedDescriptionKey: "Username cannot be empty."]
+            )
+        }
+
+        try await db.runTransaction { tx, errorPointer in
+            let usernameRef = self.db.collection("usernames").document(normalized)
+            let userRef = self.db.collection("users").document(uid)
+
+            do {
+                let usernameDoc = try tx.getDocument(usernameRef)
+
+                if usernameDoc.exists {
+                    if let existingUID = usernameDoc.data()?["uid"] as? String, existingUID != uid {
+                        errorPointer?.pointee = NSError(
+                            domain: "AuthManager",
+                            code: 409,
+                            userInfo: [NSLocalizedDescriptionKey: "Username already taken."]
+                        )
+                        return nil
+                    }
+                }
+
+                tx.setData(["uid": uid], forDocument: usernameRef)
+
+                tx.setData([
+                    "username": normalized,
+                    "displayName": cleanedDisplayName.isEmpty ? normalized : cleanedDisplayName,
+                    "updatedAt": FieldValue.serverTimestamp()
+                ], forDocument: userRef, merge: true)
+
+                return nil
+            } catch {
+                errorPointer?.pointee = error as NSError
+                return nil
+            }
+        }
+
+        needsProfileSetup = false
     }
     
     func signOut() throws {

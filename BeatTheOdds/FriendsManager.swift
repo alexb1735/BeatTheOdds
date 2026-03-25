@@ -18,6 +18,23 @@ struct PublicUserProfile: Identifiable {
     var title: String?
 }
 
+struct FriendStatsProfile: Identifiable {
+    let id: String
+    let username: String
+    let displayName: String
+    let netWorth: Double
+    let title: String
+
+    let totalMoneyMade: Double
+    let totalTimePlayed: Int
+    let longestWinStreak: Int
+    let longestLossStreak: Int
+    let largestSingleGain: Double
+    let gamesPlayed: Int
+    let gamesWon: Int
+    let highestNetworth: Double
+}
+
 @MainActor
 final class FriendsManager: ObservableObject {
     
@@ -98,6 +115,42 @@ final class FriendsManager: ObservableObject {
         let usernameStored = (u["username"] as? String) ?? normalized
 
         return PublicUserProfile(id: uid, username: usernameStored, displayName: displayName, netWorth: netWorth)
+    }
+    
+    func fetchFriendStatsProfile(uid: String) async throws -> FriendStatsProfile? {
+        let doc = try await db.collection("users").document(uid).getDocument()
+        guard let u = doc.data() else { return nil }
+
+        let username = (u["username"] as? String) ?? ""
+        let displayName = (u["displayName"] as? String) ?? username
+        let title = (u["title"] as? String) ?? ""
+
+        let netWorth = (u["netWorth"] as? Double) ?? Double(u["netWorth"] as? Int ?? 0)
+        let totalMoneyMade = (u["totalMoneyMade"] as? Double) ?? Double(u["totalMoneyMade"] as? Int ?? 0)
+        let totalTimePlayed = (u["totalTimePlayed"] as? Int) ?? 0
+        let longestWinStreak = (u["longestWinStreak"] as? Int) ?? 0
+        let longestLossStreak = (u["longestLossStreak"] as? Int) ?? 0
+        let largestSingleGain = (u["largestSingleGain"] as? Double) ?? Double(u["largestSingleGain"] as? Int ?? 0)
+        let gamesPlayed = (u["gamesPlayed"] as? Int) ?? 0
+        let gamesWon = (u["gamesWon"] as? Int) ?? 0
+        let highestNetworth = (u["highestNetworth"] as? Double) ?? Double(u["highestNetworth"] as? Int ?? 0)
+        
+
+        return FriendStatsProfile(
+            id: uid,
+            username: username,
+            displayName: displayName,
+            netWorth: netWorth,
+            title: title,
+            totalMoneyMade: totalMoneyMade,
+            totalTimePlayed: totalTimePlayed,
+            longestWinStreak: longestWinStreak,
+            longestLossStreak: longestLossStreak,
+            largestSingleGain: largestSingleGain,
+            gamesPlayed: gamesPlayed,
+            gamesWon: gamesWon,
+            highestNetworth: highestNetworth
+        )
     }
     
     func sendFriendRequest(to targetUid: String) async throws {

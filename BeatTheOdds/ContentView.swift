@@ -274,12 +274,20 @@ struct ContentView: View {
         }
     }
     
+    @State private var earningsBoostCooldownRemaining: Int = 0
+    @State private var earningsBoostCooldownEndDate: Date? = nil
+    
     @State private var showingDeleteAccountConfirm = false
     
     @State private var activeSheet: ActiveSheet? = nil
     
     @State private var uiCoins: Double = 0
     @State private var uiMoney: Double = 0
+    
+    @State private var skipNextCoinsAnimation = false
+    
+    @State private var totalTimePlayed: Int = 0
+    @State private var sessionStartDate: Date = Date()
     
     @Environment(\.scenePhase) private var scenePhase
     @EnvironmentObject var auth: AuthManager
@@ -304,7 +312,7 @@ struct ContentView: View {
         Binding(
             get: { economy.coins },
             set: { newValue in
-                economy.coins = newValue
+                economy.coins = roundedToCents(newValue)
             }
         )
     }
@@ -313,7 +321,7 @@ struct ContentView: View {
         Binding(
             get: { economy.money },
             set: { newValue in
-                economy.money = newValue
+                economy.money = roundedToCents(newValue)
             }
         )
     }
@@ -539,6 +547,8 @@ struct ContentView: View {
     // MARK: - Persistence keys
     private enum PersistKey {
         
+        static func totalTimePlayed(_ uid: String) -> String { "cv.\(uid).totalTimePlayed" }
+        
         static func adCooldownEndDate(_ uid: String) -> String { "cv.\(uid).adCooldownEndDate" }
         
         static func hundredDollarRewardEndDate(_ uid: String) -> String { "cv.\(uid).hundredDollarRewardEndDate" }
@@ -583,6 +593,50 @@ struct ContentView: View {
         static func gamesPlayed(_ uid: String) -> String { "cv.\(uid).gamesPlayed" }
         static func gamesWon(_ uid: String) -> String { "cv.\(uid).gamesWon" }
         static func highestNetworth(_ uid: String) -> String { "cv.\(uid).highestNetworth" }
+    }
+    
+    private func canPlay() -> Bool {
+        return economy.money >= 5.0
+    }
+    
+    private func adRewardAmount() -> Double {
+        let netWorth = economy.netWorth
+
+        if netWorth >= 5_000_000 { return 20000 }
+        if netWorth >= 1_000_000 { return 10000 }
+        if netWorth >= 250_000 { return 5000 }
+        if netWorth >= 50_000 { return 1000 }
+        if netWorth >= 10_000 { return 500 }
+        if netWorth >= 5_000 { return 200 }
+
+        return 100
+    }
+    private func currentTotalTimePlayed() -> Int {
+        totalTimePlayed + Int(Date().timeIntervalSince(sessionStartDate))
+    }
+    
+    private func formatPlayTime(_ seconds: Int) -> String {
+        let hours = seconds / 3600
+        let minutes = (seconds % 3600) / 60
+
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        } else {
+            return "\(minutes)m"
+        }
+    }
+    
+   
+    private func showTooBrokeAlert() {
+        alertMessage = "Oops! It appears you're too broke! Your current bet must be at least $5!"
+        showAlert = true
+    }
+    
+    private func parsedAmount(from text: String) -> Double? {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.locale = Locale.current
+        return formatter.number(from: text)?.doubleValue
     }
     
     private func claimDailyReward(multiplier: Double) {
@@ -632,15 +686,21 @@ struct ContentView: View {
     }
     
     private func activateEarningsBoost() {
-        earningsBoostMultiplier = 2.0
+        earningsBoostMultiplier = 1.5
         earningsBoostTimeRemaining = 600
         earningsBoostEndDate = Date().addingTimeInterval(600)
     }
     
-    
+    private func roundedToCents(_ value: Double) -> Double {
+        (value * 100).rounded() / 100
+    }
     
     private func loadPersistedState() {
         let d = UserDefaults.standard
+        
+        if d.object(forKey: PersistKey.totalTimePlayed(uid)) != nil {
+            totalTimePlayed = d.integer(forKey: PersistKey.totalTimePlayed(uid))
+        }
         
         if d.object(forKey: PersistKey.adCooldownEndDate(uid)) != nil {
             let storedTime = d.double(forKey: PersistKey.adCooldownEndDate(uid))
@@ -700,11 +760,11 @@ struct ContentView: View {
         }
 
         if d.object(forKey: PersistKey.coins(uid)) != nil {
-            economy.coins = d.double(forKey: PersistKey.coins(uid))
+            economy.coins = roundedToCents(d.double(forKey: PersistKey.coins(uid)))
         }
 
         if d.object(forKey: PersistKey.money(uid)) != nil {
-            economy.money = d.double(forKey: PersistKey.money(uid))
+            economy.money = roundedToCents(d.double(forKey: PersistKey.money(uid)))
         }
 
         if d.object(forKey: PersistKey.totalMoneyMade(uid)) != nil {
@@ -796,6 +856,8 @@ struct ContentView: View {
     private func persistState() {
         let d = UserDefaults.standard
         
+        d.set(totalTimePlayed, forKey: PersistKey.totalTimePlayed(uid))
+        
         d.set(adCooldownEndDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.adCooldownEndDate(uid))
         
         d.set(hundredDollarRewardEndDate?.timeIntervalSince1970 ?? 0, forKey: PersistKey.hundredDollarRewardEndDate(uid))
@@ -844,7 +906,21 @@ struct ContentView: View {
     private func applyWin(to binding: Binding<Double>, baseChange: Double, isCoins: Bool) {
         // Apply current multiplier to winnings; first win uses current, then increment for next time
         let winnings = baseChange * streakMultiplier * earningsBoostMultiplier
-        let target = binding.wrappedValue + winnings
+        var target = binding.wrappedValue + winnings
+
+        // Only apply cap for MONEY (not coins)
+        if !isCoins {
+            let maxBet = currentBetLimit()
+
+            if target > maxBet {
+                let overflow = target - maxBet
+                target = maxBet
+
+                // move overflow into coins
+                economy.coins = roundedToCents(economy.coins + overflow)
+                print("Overflow moved to coins:", overflow)
+            }
+        }
         playRewardSound()
         
         // Update stats
@@ -946,6 +1022,7 @@ struct ContentView: View {
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
             recomputeStats()
+            enforceMinimumMultiplier()
 
             if isCoins {
                 isAnimatingCoinsIncrease = false
@@ -1091,9 +1168,9 @@ struct ContentView: View {
         if newTotal > prevTotal {
             currentStreak += 0.1
         } else if newTotal < prevTotal {
-            currentStreak = 1.0
+            currentStreak = minimumAllowedMultiplier
         }
-        streakMultiplier = max(1.0, currentStreak)
+        streakMultiplier = max(minimumAllowedMultiplier, currentStreak)
         lastTotals = new
     }
     
@@ -1121,8 +1198,19 @@ struct ContentView: View {
         if hasIncomePer1s { coinsPerSecond += 1.0 }
     }
     
-    private func updateLeaderboardProfileInFirestore() async {
+    private func enforceMinimumMultiplier() {
+        let floor = minimumAllowedMultiplier
 
+        if currentStreak < floor {
+            currentStreak = floor
+        }
+
+        if streakMultiplier < floor {
+            streakMultiplier = floor
+        }
+    }
+    
+    private func updateLeaderboardProfileInFirestore() async {
         // Prevent updates more often than every 15 seconds
         if Date().timeIntervalSince(lastLeaderboardUpdate) < 15 {
             return
@@ -1131,19 +1219,27 @@ struct ContentView: View {
         lastLeaderboardUpdate = Date()
 
         let currentNetWorth = economy.coins + economy.money
-
         let uid = auth.user?.uid ?? Auth.auth().currentUser?.uid
         guard let uid else { return }
 
         let doc = Firestore.firestore().collection("users").document(uid)
 
-        let data: [String: Any] = [
-            "username": storedUsername ?? "",
-            "displayName": storedDisplayName ?? auth.user?.displayName ?? "Player",
+        var data: [String: Any] = [
             "netWorth": currentNetWorth,
             "title": playerTitle(),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+
+        if let storedUsername, !storedUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["username"] = storedUsername
+        }
+
+        if let storedDisplayName, !storedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["displayName"] = storedDisplayName
+        } else if let authDisplayName = auth.user?.displayName,
+                  !authDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["displayName"] = authDisplayName
+        }
 
         do {
             try await doc.setData(data, merge: true)
@@ -1158,15 +1254,32 @@ struct ContentView: View {
 
         let doc = Firestore.firestore().collection("users").document(uid)
 
-        let data: [String: Any] = [
-            "username": storedUsername ?? "",
-            "displayName": storedDisplayName ?? auth.user?.displayName ?? "Player",
-            "coins": economy.coins,
-            "money": economy.money,
-            "netWorth": economy.coins + economy.money,
+        var data: [String: Any] = [
+            "coins": roundedToCents(economy.coins),
+            "money": roundedToCents(economy.money),
+            "netWorth": roundedToCents(roundedToCents(economy.coins) + roundedToCents(economy.money)),
             "title": playerTitle(),
+            "totalMoneyMade": roundedToCents(totalMoneyMade),
+            "totalTimePlayed": currentTotalTimePlayed(),
+            "longestWinStreak": longestWinStreak,
+            "longestLossStreak": longestLossStreak,
+            "largestSingleGain": roundedToCents(largestSingleGain),
+            "gamesPlayed": gamesPlayed,
+            "gamesWon": gamesWon,
+            "highestNetworth": roundedToCents(highestNetworth),
             "updatedAt": FieldValue.serverTimestamp()
         ]
+
+        if let storedUsername, !storedUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["username"] = storedUsername
+        }
+
+        if let storedDisplayName, !storedDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["displayName"] = storedDisplayName
+        } else if let authDisplayName = auth.user?.displayName,
+                  !authDisplayName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            data["displayName"] = authDisplayName
+        }
 
         do {
             try await doc.setData(data, merge: true)
@@ -1287,7 +1400,7 @@ struct ContentView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "play.rectangle.fill")
                             .font(.title2)
-                        Text("Earn $100!")
+                        Text("Earn • $\(formatNumber(adRewardAmount()))!")
                             .font(.headline)
                     }
                     .foregroundColor(.white)
@@ -1365,7 +1478,11 @@ struct ContentView: View {
                         .background(Color.blue.opacity(0.15))
                         .cornerRadius(12)
                     }
-                    .alert("Not enough funds!", isPresented: $showAlert) { Button("OK", role: .cancel) {} }
+                    .alert("Not enough funds!", isPresented: $showAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(alertMessage)
+                    }
                     .buttonStyle(PressScaleButtonStyle())
                 }
                 .frame(maxWidth: .infinity)
@@ -1385,7 +1502,11 @@ struct ContentView: View {
                         .background(Color.green.opacity(0.15))
                         .cornerRadius(12)
                     }
-                    .alert("Not enough funds!", isPresented: $showAlert) { Button("OK", role: .cancel) {} }
+                    .alert("Not enough funds!", isPresented: $showAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(alertMessage)
+                    }
                     .buttonStyle(PressScaleButtonStyle())
                 }
                 .frame(maxWidth: .infinity)
@@ -1408,7 +1529,11 @@ struct ContentView: View {
                         .background(Color.blue.opacity(0.15))
                         .cornerRadius(12)
                     }
-                    .alert("Not enough funds!", isPresented: $showAlert) { Button("OK", role: .cancel) {} }
+                    .alert("Not enough funds!", isPresented: $showAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(alertMessage)
+                    }
                     .buttonStyle(PressScaleButtonStyle())
                 }
                 .frame(maxWidth: .infinity)
@@ -1428,7 +1553,11 @@ struct ContentView: View {
                         .background(Color.green.opacity(0.15))
                         .cornerRadius(12)
                     }
-                    .alert("Not enough funds!", isPresented: $showAlert) { Button("OK", role: .cancel) {} }
+                    .alert("Not enough funds!", isPresented: $showAlert) {
+                        Button("OK", role: .cancel) { }
+                    } message: {
+                        Text(alertMessage)
+                    }
                     .buttonStyle(PressScaleButtonStyle())
                 }
                 .frame(maxWidth: .infinity)
@@ -1446,6 +1575,11 @@ struct ContentView: View {
                               !showingMilestonePopup,
                               activeSheet == nil
                         else { return }
+
+                        guard canPlay() else {
+                            showTooBrokeAlert()
+                            return
+                        }
 
                         activeSheet = .roulette
                     } label: {
@@ -1477,6 +1611,11 @@ struct ContentView: View {
                               !showingMilestonePopup,
                               activeSheet == nil
                         else { return }
+
+                        guard canPlay() else {
+                            showTooBrokeAlert()
+                            return
+                        }
 
                         activeSheet = .roulette2
                     } label: {
@@ -1612,9 +1751,11 @@ struct ContentView: View {
             .cornerRadius(12)
             .shadow(radius: 6)
             
+            
+            
             if earningsBoostTimeRemaining > 0 {
                 VStack(alignment: .trailing, spacing: 4) {
-                    Text("⚡ 2× Earnings Boost")
+                    Text("⚡ 1.5× Earnings Boost")
                         .font(.caption)
                         .fontWeight(.semibold)
                         .foregroundColor(.yellow)
@@ -1629,6 +1770,24 @@ struct ContentView: View {
                 .background(.ultraThinMaterial)
                 .cornerRadius(12)
                 .shadow(radius: 6)
+            } else if earningsBoostCooldownRemaining > 0 {
+                VStack(alignment: .trailing, spacing: 4) {
+                    Text("⚡ 1.5× Earnings Boost")
+                        .font(.caption)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.yellow)
+
+                    Text("Cooldown: \(formatTime(earningsBoostCooldownRemaining))")
+                        .id(uiTick)
+                        .font(.caption2)
+                        .monospacedDigit()
+                        .foregroundColor(.primary)
+                }
+                .padding(12)
+                .background(.ultraThinMaterial)
+                .cornerRadius(12)
+                .shadow(radius: 6)
+
             } else {
                 Button(action: {
                     pauseBackgroundMusic()
@@ -1638,7 +1797,7 @@ struct ContentView: View {
                     }
                 }) {
                     VStack(spacing: 2) {
-                        Text("⚡ 2× Earnings Boost")
+                        Text("⚡ 1.5× Earnings Boost")
                             .font(.caption)
                             .fontWeight(.semibold)
                         Text("Watch ad • 10 min")
@@ -1852,6 +2011,11 @@ struct ContentView: View {
                                     Image(systemName: "dollarsign.circle").foregroundColor(.blue)
                                     Text("Total money made: $\(formatNumber(totalMoneyMade))").font(.subheadline)
                                 }
+                                
+                                HStack {
+                                    Image(systemName: "clock").foregroundColor(.blue)
+                                    Text("Total time played: \(formatPlayTime(currentTotalTimePlayed()))").font(.subheadline)
+                                }
 
                                 HStack {
                                     Image(systemName: "flame").foregroundColor(.red)
@@ -1882,7 +2046,7 @@ struct ContentView: View {
                                             .monospacedDigit()
                                     }
 
-                                    Text("≈ $\(formatNumber(coinsPerSecond * 60))/min • $\(formatNumber(coinsPerSecond * 3600))/hour")
+                                    Text("≈ $\(formatNumber(coinsPerSecond * 60))/min • $\(formatNumber(coinsPerSecond * 3600))/hour • $\(formatNumber(coinsPerSecond * 60 * 60 * 24))/day")
                                         .font(.caption2)
                                         .foregroundColor(.secondary)
                                         .monospacedDigit()
@@ -2496,6 +2660,11 @@ struct ContentView: View {
                         .buttonStyle(.bordered)
                         .buttonStyle(PressScaleButtonStyle())
                     Button("Let's do it!") {
+                        guard canPlay() else {
+                            showTooBrokeAlert()
+                            showingHighRiskConfirm = false
+                            return
+                        }
                         let oneInTen = Int.random(in: 1...10)
                         if oneInTen == 1 {
                             let baseGain = economy.money * 9.0
@@ -2537,6 +2706,7 @@ struct ContentView: View {
                                 applyLoss(to: coinsBinding, lossAmount: 100.0, isCoins: true)
                             }
                         } else {
+                            alertMessage = "Not enough funds!"
                             showAlert = true
                         }
                         showingLotteryConfirm = false
@@ -2572,6 +2742,7 @@ struct ContentView: View {
                                 applyLoss(to: coinsBinding, lossAmount: 250.0, isCoins: true)
                             }
                         } else {
+                            alertMessage = "Not enough funds!"
                             showAlert = true
                         }
                         showingHighRollerConfirm = false
@@ -2607,6 +2778,7 @@ struct ContentView: View {
                                 applyLoss(to: coinsBinding, lossAmount: 100.0, isCoins: true)
                             }
                         } else {
+                            alertMessage = "Not enough funds!"
                             showAlert = true
                         }
                         showingSuperHighRollerConfirm = false
@@ -2642,6 +2814,7 @@ struct ContentView: View {
                                 applyLoss(to: coinsBinding, lossAmount: 1.0, isCoins: true)
                             }
                         } else {
+                            alertMessage = "Not enough funds!"
                             showAlert = true
                         }
                         showingDollarForTwoConfirm = false
@@ -2822,9 +2995,23 @@ struct ContentView: View {
                         .font(.headline)
                         .foregroundColor(.primary)
                     TextField("Enter amount", text: $amountText)
-                        .keyboardType(.numberPad)
+                        .keyboardType(.decimalPad)
                         .textFieldStyle(.roundedBorder)
                         .padding(.horizontal)
+                        .onChange(of: amountText) { _, newValue in
+                            let separator = Locale.current.decimalSeparator ?? ","
+
+                            var filtered = newValue.filter {
+                                $0.isNumber || String($0) == separator
+                            }
+
+                            let parts = filtered.components(separatedBy: separator)
+                            if parts.count > 2 {
+                                filtered = parts[0] + separator + parts[1]
+                            }
+
+                            amountText = filtered
+                        }
                     HStack {
                         Button("Close") { showingAmountPopup = false }
                             .buttonStyle(.bordered)
@@ -2833,7 +3020,7 @@ struct ContentView: View {
                             .buttonStyle(.borderedProminent)
                             .tint(.blue)
                             .buttonStyle(PressScaleButtonStyle())
-                            .disabled(Double(amountText) == nil || (Double(amountText) ?? 0.0) <= 0.0)
+                            .disabled(parsedAmount(from: amountText) == nil || (parsedAmount(from: amountText) ?? 0.0) <= 0.0)
                     }
                 }
                 .padding()
@@ -2866,7 +3053,9 @@ struct ContentView: View {
                 recomputeStats()
             } else {
                 if isStreakProtected { isStreakProtected = false } else {
-                    currentStreak = 1.0; streakMultiplier = 1.0; hasUsedProtectionForCurrentStreak = false
+                    currentStreak = minimumAllowedMultiplier
+                    streakMultiplier = minimumAllowedMultiplier
+                    hasUsedProtectionForCurrentStreak = false
                 }
                 animateValue(value: moneyBinding, to: originalMoney, isCoins: false)
                 recomputeStats()
@@ -2891,7 +3080,9 @@ struct ContentView: View {
                 animateValue(value: moneyBinding, to: 0.0, isCoins: false)
                 recomputeStats()
                 if isStreakProtected { isStreakProtected = false } else {
-                    currentStreak = 1.0; streakMultiplier = 1.0; hasUsedProtectionForCurrentStreak = false
+                    currentStreak = minimumAllowedMultiplier
+                    streakMultiplier = minimumAllowedMultiplier
+                    hasUsedProtectionForCurrentStreak = false
                 }
                 lastTotals = (economy.coins, economy.money)
             }
@@ -2913,7 +3104,8 @@ struct ContentView: View {
         }
         pauseBackgroundMusic()
         rewardedAdManager.showAd {
-            Task { await economy.addCoins(100.0) }
+            let reward = adRewardAmount()
+            Task { await economy.addCoins(reward) }
             recomputeStats()
             adCooldownRemaining = 600
             adCooldownEndDate = Date().addingTimeInterval(600)
@@ -2924,8 +3116,8 @@ struct ContentView: View {
     }
     
     private func doubleOrNothingTapped() {
-        guard economy.money > 0 else {
-            showAlert = true
+        guard canPlay() else {
+            showTooBrokeAlert()
             return
         }
         if Bool.random() {
@@ -2942,7 +3134,7 @@ struct ContentView: View {
     }
     
     private func confirmAmount() {
-        let amount = Double(amountText) ?? 0.0
+        let amount = roundedToCents(parsedAmount(from: amountText) ?? 0.0)
         guard amount > 0.0 else {
             showingAmountPopup = false
             return
@@ -2997,13 +3189,14 @@ struct ContentView: View {
     // Note: UMP/Google SDK may log SKAdNetwork/consent hints. Configure Info.plist with SKAdNetworkItems and UMP test IDs to silence in development.
     private func onAppearSetup() {
         updateBetLimitMultiplier()
-        lastMilestoneReached = currentUnlockedMilestone()
+        
         lastActiveDate = Date()
+        sessionStartDate = Date()
         lastTotals = (economy.coins, economy.money)
         updateCoinsPerSecond()
 
-        if currentStreak < 1.0 { currentStreak = 1.0 }
-        streakMultiplier = max(1.0, currentStreak)
+        if currentStreak < minimumAllowedMultiplier { currentStreak = minimumAllowedMultiplier }
+        streakMultiplier = max(minimumAllowedMultiplier, currentStreak)
 
         NotificationCenter.default.post(name: NSNotification.Name("RewardedAd_Load"), object: nil)
 
@@ -3015,6 +3208,13 @@ struct ContentView: View {
         startBackgroundMusic()
         applyVolumes()
         loadPersistedState()
+        totalTimePlayed += Int(Date().timeIntervalSince(sessionStartDate))
+        sessionStartDate = Date()
+        lastMilestoneReached = currentUnlockedMilestone()
+        if adCooldownRemaining > 600 {
+            adCooldownRemaining = 0
+            adCooldownEndDate = nil
+        }
         streakMultiplier = max(1.0, currentStreak)
 
         if !hasAttemptedConsent {
@@ -3120,6 +3320,8 @@ struct ContentView: View {
         
         uiTick += 1
         
+        
+        
         if let endDate = adCooldownEndDate {
             let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
             adCooldownRemaining = remaining
@@ -3131,14 +3333,37 @@ struct ContentView: View {
         }
         if let endDate = earningsBoostEndDate {
             let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
+            earningsBoostTimeRemaining = max(0, remaining)
 
-            earningsBoostTimeRemaining = remaining
-            print("Boost remaining:", earningsBoostTimeRemaining)
-
-            if remaining <= 0 {
-                earningsBoostTimeRemaining = 0
+            if earningsBoostTimeRemaining == 0 {
                 earningsBoostMultiplier = 1.0
                 earningsBoostEndDate = nil
+
+                // start 5h cooldown AFTER boost ends
+                earningsBoostCooldownRemaining = 5 * 60 * 60
+                earningsBoostCooldownEndDate = Date().addingTimeInterval(5 * 60 * 60)
+
+                print(
+                    "Boost ended | cooldown started:",
+                    earningsBoostCooldownRemaining
+                )
+            }
+        }
+        
+        if let endDate = earningsBoostCooldownEndDate {
+            let remaining = max(0, Int(endDate.timeIntervalSinceNow.rounded()))
+            earningsBoostCooldownRemaining = remaining
+
+            print(
+                "Cooldown ticking | remaining:",
+                earningsBoostCooldownRemaining,
+                "| endDate:",
+                earningsBoostCooldownEndDate ?? Date.distantPast
+            )
+
+            if remaining <= 0 {
+                earningsBoostCooldownRemaining = 0
+                earningsBoostCooldownEndDate = nil
             }
         }
 
@@ -3159,12 +3384,39 @@ struct ContentView: View {
 
         incomeSecondCounter += 1
 
-        if coinsPerSecond > 0 {
-            let boostedIncome = coinsPerSecond * earningsBoostMultiplier
-            economy.coins += boostedIncome
-            pendingPassiveIncome += boostedIncome
-            recomputeStats()
+        if hasIncomePerMinute && incomeSecondCounter % 60 == 0 {
+            let payout = roundedToCents(1.0 * earningsBoostMultiplier)
+            skipNextCoinsAnimation = true
+            economy.coins = roundedToCents(economy.coins + payout)
+            pendingPassiveIncome = roundedToCents(pendingPassiveIncome + payout)
+            
         }
+
+        if hasIncomePer30s && incomeSecondCounter % 30 == 0 {
+            let payout = roundedToCents(1.0 * earningsBoostMultiplier)
+            skipNextCoinsAnimation = true
+            economy.coins = roundedToCents(economy.coins + payout)
+            pendingPassiveIncome = roundedToCents(pendingPassiveIncome + payout)
+            
+        }
+
+        if hasIncomePer15s && incomeSecondCounter % 15 == 0 {
+            let payout = roundedToCents(1.0 * earningsBoostMultiplier)
+            skipNextCoinsAnimation = true
+            economy.coins = roundedToCents(economy.coins + payout)
+            pendingPassiveIncome = roundedToCents(pendingPassiveIncome + payout)
+            
+        }
+
+        if hasIncomePer1s {
+            let payout = roundedToCents(1.0 * earningsBoostMultiplier)
+            skipNextCoinsAnimation = true
+            economy.coins = roundedToCents(economy.coins + payout)
+            pendingPassiveIncome = roundedToCents(pendingPassiveIncome + payout)
+            
+        }
+
+        recomputeStats()
         
         if incomeSecondCounter >= 60 * 60 * 24 {
             incomeSecondCounter = 0
@@ -3178,6 +3430,7 @@ struct ContentView: View {
                 await economy.save()
             }
         }
+        enforceMinimumMultiplier()
     }
     
     
@@ -3244,15 +3497,19 @@ struct ContentView: View {
     }
     
     private func playerTitle() -> String {
-        let netWorth = economy.netWorth
+        let unlocked = currentUnlockedMilestone()
 
-        if netWorth >= 5_000_000 { return "👑 Tycoon" }
-        if netWorth >= 1_000_000 { return "🥇 Millionaire" }
-        if netWorth >= 250_000 { return "🥈 High Roller" }
-        if netWorth >= 50_000 { return "🥉 Mid level goon" }
-        if netWorth >= 10_000 { return "💰 Rookie" }
-
-        return "Chud"
+        switch unlocked {
+        case 5_000: return "Bum"
+        case 10_000: return "Chud"
+        case 50_000: return "Low level goon"
+        case 100_000: return "Mid level goon"
+        case 250_000: return "Moderate motion"
+        case 500_000: return "Serious motion detected!"
+        case 1_000_000: return "Millionaire status achieved!"
+        case 5_000_000: return "Big boy baller!"
+        default: return "Living legend"
+        }
     }
     
     private func currentMilestoneTarget() -> Double {
@@ -3300,18 +3557,18 @@ struct ContentView: View {
     
     
     private func currentMilestoneReward() -> String {
-        let target = currentMilestoneTarget()
+        let target = currentUnlockedMilestone()
 
         switch target {
-        case 5_000: return "Chud"
-        case 10_000: return "Low level goon"
-        case 50_000: return "Moderate motion"
-        case 100_000: return "Serious motion detected!"
-        case 250_000: return "Big Bank milestone"
-        case 500_000: return "Elite genius milestone"
-        case 1_000_000: return "Millionaire milestone"
-        case 5_000_000: return "Tycoon milestone"
-        default: return "Legend milestone"
+        case 5_000: return "Bum"
+        case 10_000: return "Chud"
+        case 50_000: return "Low level goon"
+        case 100_000: return "Mid level goon"
+        case 250_000: return "Moderate motion"
+        case 500_000: return "Serious motion detected!"
+        case 1_000_000: return "Millionaire status achieved!"
+        case 5_000_000: return "Big boy baller!"
+        default: return "Living legend"
         }
     }
 
@@ -3403,6 +3660,29 @@ struct ContentView: View {
         
         
         private let multipliers: [Double] = Array(stride(from: 0.1, through: 2.0, by: 0.1)).map { Double(round($0 * 10) / 10) }
+        private let weights: [Int] = [
+            1, // 0.1
+            1, // 0.2
+            4, // 0.3  <- boosted
+            1, // 0.4
+            1, // 0.5
+            1, // 0.6
+            1, // 0.7
+            1, // 0.8
+            1, // 0.9
+            1, // 1.0
+            1, // 1.1
+            1, // 1.2
+            1, // 1.3
+            1, // 1.4
+            1, // 1.5
+            1, // 1.6
+            4, // 1.7  <- boosted
+            1, // 1.8
+            1, // 1.9
+            1  // 2.0
+        ]
+        
         
         class DisplayLinkProxy {
             var tick: (() -> Void)?
@@ -3495,72 +3775,116 @@ struct ContentView: View {
             }
         }
         
-        
+        private func weightedRandomIndex() -> Int {
+            let totalWeight = weights.reduce(0, +)
+            let random = Int.random(in: 0..<totalWeight)
+
+            var runningTotal = 0
+            for (index, weight) in weights.enumerated() {
+                runningTotal += weight
+                if random < runningTotal {
+                    return index
+                }
+            }
+            return 0
+        }
         
         private func spinWheel() {
             isSpinning = true
-            
+
             let degreesPerSlice = 360.0 / Double(multipliers.count)
+            let targetIndex = weightedRandomIndex()
             let fullSpins = Double.random(in: 5.0...7.0)
-            let randomOffset = Double.random(in: 0..<360)
-            let delta = fullSpins * 360.0 + randomOffset
-            
-            startRotation = rotation
+
+            // Normalize current rotation so it never grows forever
+            let normalizedStartRotation = normalizedDegrees(rotation)
+
+            // Find a final rotation in [0, 360) that visually lands on winningIndex
+            // Compute the exact final rotation that puts the CENTER of winningIndex under the top pointer
+            var matchedFinalRotation = normalizedDegrees(rotation)
+
+            for candidate in stride(from: 0.0, to: 360.0, by: 0.1) {
+                if displayedIndex(for: candidate) == targetIndex {
+                    matchedFinalRotation = candidate
+                    break
+                }
+            }
+            // Compute forward delta from the current normalized rotation
+            let forwardDelta = normalizedDegrees(matchedFinalRotation - normalizedStartRotation)
+            let delta = fullSpins * 360.0 + forwardDelta
+
+            startRotation = normalizedStartRotation
+            rotation = normalizedStartRotation
             targetRotation = rotation + delta
             spinDuration = 3.0
             spinStartTime = CACurrentMediaTime()
-            
+
             // Initialize pointer angle for click detection
-            let normalizeAngle: (Double) -> Double = { angle in
-                let mod = angle.truncatingRemainder(dividingBy: 360)
-                return mod < 0 ? mod + 360 : mod
-            }
             func pointerAngle(for rotation: Double) -> Double {
-                // Top pointer is fixed at -90°, angle under pointer is (-90 - rotation)
-                return normalizeAngle(-90.0 - rotation)
+                normalizedDegrees(-90.0 - rotation)
             }
             prevPointerAngle = pointerAngle(for: startRotation)
-            // Calculate next slice boundary angle relative to progress 0.0
-            // We'll track progress in degrees from startRotation, so the next boundary is the smallest multiple of degreesPerSlice larger than 0
-            nextSliceBoundary = degreesPerSlice * ceil(0 / degreesPerSlice) + degreesPerSlice
-            
+
+            // Next slice boundary for click sounds
+            nextSliceBoundary = degreesPerSlice
+
             displayLink?.invalidate()
             let proxy = DisplayLinkProxy()
             proxy.tick = {
                 let now = CACurrentMediaTime()
                 let t = min(1, (now - self.spinStartTime) / self.spinDuration)
+
                 // Ease out cubic
                 let eased = 1 - pow(1 - t, 3)
                 self.rotation = self.startRotation + (self.targetRotation - self.startRotation) * eased
-                
-                // Calculate how much progress in degrees we've made since startRotation
+
                 let currentProgress = self.rotation - self.startRotation
-                
+
                 var clicksFired = 0
                 while currentProgress >= self.nextSliceBoundary && clicksFired < 5 {
                     self.playClick()
                     self.nextSliceBoundary += degreesPerSlice
                     clicksFired += 1
                 }
-                
+
                 if t >= 1.0 {
                     self.isSpinning = false
                     self.displayLink?.invalidate()
                     self.displayLink = nil
+
                     
-                    // Compute final winning index
-                    let finalAngle = (self.rotation.truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
-                    let degreesPerSlice = 360.0 / Double(self.multipliers.count)
-                    let angleUnderPointer = ((-90.0 - finalAngle).truncatingRemainder(dividingBy: 360) + 360).truncatingRemainder(dividingBy: 360)
-                    var index = Int(round(((angleUnderPointer + 90.0) / degreesPerSlice) - 0.5))
-                    index = (index % self.multipliers.count + self.multipliers.count) % self.multipliers.count
-                    let result = self.multipliers[index]
+
+                    let landedIndex = self.displayedIndex(for: self.rotation)
+                    let result = self.multipliers[landedIndex]
+
+                    print(
+                        "targetIndex:", targetIndex,
+                        "landedIndex:", landedIndex,
+                        "result:", result
+                    )
                     self.onResult(result)
                 }
             }
+
             self.displayLinkProxy = proxy
             displayLink = CADisplayLink(target: proxy, selector: #selector(DisplayLinkProxy.onTick))
             displayLink?.add(to: .main, forMode: .common)
+        }
+        
+        private func normalizedDegrees(_ value: Double) -> Double {
+            let mod = value.truncatingRemainder(dividingBy: 360)
+            return mod < 0 ? mod + 360 : mod
+        }
+
+        private func displayedIndex(for rotation: Double) -> Int {
+            let finalAngle = normalizedDegrees(rotation)
+            let degreesPerSlice = 360.0 / Double(multipliers.count)
+
+            // The wheel slices already start at the top, so no extra -90 offset is needed here.
+            let angleUnderPointer = normalizedDegrees(-finalAngle)
+
+            let index = Int(angleUnderPointer / degreesPerSlice) % multipliers.count
+            return index
         }
         
         private func renderWheelImage() {
@@ -4200,6 +4524,9 @@ struct ContentView: View {
                 }
                 
                 else {
+                    totalTimePlayed += Int(Date().timeIntervalSince(sessionStartDate))
+                    sessionStartDate = Date()
+
                     Task { @MainActor in
                         await economy.save()
                         await saveUserEconomyToFirestore()
@@ -4211,14 +4538,28 @@ struct ContentView: View {
             .onChange(of: economy.netWorth) { _, _ in
                 updateBetLimitMultiplier()
                 checkForMilestoneUnlock()
-            }
+                
+                    
 
+                Task {
+                    await saveUserEconomyToFirestore()
+                }
+            }
+        
+            .onChange(of: premium.isPremiumActive) { _, _ in
+                enforceMinimumMultiplier()
+            }
             .onChange(of: economy.money) { _, newValue in
                 animateDisplayedValue(value: $displayedMoney, to: newValue)
             }
 
             .onChange(of: economy.coins) { _, newValue in
-                animateDisplayedValue(value: $displayedCoins, to: newValue)
+                if skipNextCoinsAnimation {
+                    displayedCoins = newValue
+                    skipNextCoinsAnimation = false
+                } else {
+                    animateDisplayedValue(value: $displayedCoins, to: newValue)
+                }
             }
 
             .onChange(of: hasIncomePerMinute) { _, _ in
@@ -4281,6 +4622,8 @@ struct ContentView: View {
             Group {
                 if auth.user == nil {
                     AuthView()
+                } else if auth.needsProfileSetup {
+                    CompleteProfileView()
                 } else {
                     step6
                 }
