@@ -31,8 +31,8 @@ final class PremiumStore: ObservableObject {
     }
 
     func start() async {
-        await requestProducts()
         await refreshSubscriptionStatus()
+        await requestProducts()
     }
 
     func requestProducts() async {

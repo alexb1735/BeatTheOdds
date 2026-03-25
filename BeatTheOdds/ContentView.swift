@@ -16,6 +16,7 @@ import QuartzCore
 import UserMessagingPlatform
 import FirebaseAuth
 import FirebaseFirestore
+import _StoreKit_SwiftUI
 
 
 // Simple app links container to avoid undefined symbol errors
@@ -273,7 +274,7 @@ struct ContentView: View {
         }
     }
     
-    
+    @State private var showingDeleteAccountConfirm = false
     
     @State private var activeSheet: ActiveSheet? = nil
     
@@ -2134,50 +2135,26 @@ struct ContentView: View {
                         .background(Color.blue.opacity(0.12))
                         .cornerRadius(10)
                     
+                    SubscriptionStoreView(groupID: "21969229")
+                        .subscriptionStoreButtonLabel(.multiline)
+                        .storeButton(.visible, for: .restorePurchases)
+                        .padding(.top, 8)
+                    
+                    
+                    
                     VStack(spacing: 8) {
+                        Link("Privacy Policy", destination: AppLinks.privacyPolicy)
+                            .font(.caption)
+                            .foregroundColor(.blue)
 
-                        Button {
-                            Task {
-                                await premium.purchaseMonthlyPass()
-                            }
-                        } label: {
-                            VStack(spacing: 2) {
-                                Text("Start Premium")
-                                    .font(.headline)
-
-                                Text("€0.99 / month • Cancel anytime")
-                                    .font(.caption)
-                                    .opacity(0.85)
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 6)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                        .disabled(premium.isPremiumActive || premium.isLoading)
-
-                        if premium.isPremiumActive {
-                            Text("Premium is active on this account")
-                                .font(.caption)
-                                .foregroundColor(.green)
-                        }
+                        Link(
+                            "Terms of Use",
+                            destination: URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
+                        )
+                        .font(.caption)
+                        .foregroundColor(.blue)
                     }
-                    
-                    Button("Restore Purchases") {
-                        Task {
-                            await premium.restorePurchases()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    
-                    Button("Manage Subscription") {
-                        if let url = URL(string: "https://apps.apple.com/account/subscriptions") {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
+                    .padding(.top, 8)
                 }
                 .padding()
             }
@@ -3088,6 +3065,33 @@ struct ContentView: View {
             }
         } catch {
             // silently ignore
+        }
+    }
+    
+    private func deleteAccountFlow() async {
+        guard let user = Auth.auth().currentUser else { return }
+        let uid = user.uid
+        let db = Firestore.firestore()
+
+        do {
+            // Delete the main user document
+            try await db.collection("users").document(uid).delete()
+
+            // Delete username registry entry if available
+            if let username = storedUsername?.lowercased(), !username.isEmpty {
+                try? await db.collection("usernames").document(username).delete()
+            }
+
+            // Delete Firebase Auth account
+            try await user.delete()
+            
+            try Auth.auth().signOut()
+
+            // Close the account sheet
+            showingUserInfo = false
+
+        } catch {
+            print("Account deletion failed:", error)
         }
     }
     
@@ -4330,6 +4334,14 @@ struct ContentView: View {
                 Button("Close") { showingUserInfo = false }
                     .buttonStyle(.bordered)
                     .buttonStyle(PressScaleButtonStyle())
+                
+                Button(role: .destructive) {
+                    showingDeleteAccountConfirm = true
+                } label: {
+                    Text("Delete Account")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.red)
             }
             .padding()
             .background(.ultraThinMaterial)
@@ -4339,6 +4351,17 @@ struct ContentView: View {
         .presentationDetents([.medium])
         .task {
             await loadStoredUsername()
+        }
+        
+        .alert("Delete Account?", isPresented: $showingDeleteAccountConfirm) {
+            Button("Cancel", role: .cancel) { }
+            Button("Delete", role: .destructive) {
+                Task {
+                    await deleteAccountFlow()
+                }
+            }
+        } message: {
+            Text("This will permanently delete your account and your saved data.")
         }
     }
 }
